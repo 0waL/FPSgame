@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tactical FPS — Weapon Selection</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<!-- ── START SCREEN ─────────────────────────────────────── -->
+<div id="start-screen">
+  <div class="ss-box">
+    <h1>TACTICAL FPS</h1>
+    <p class="subtitle">발로란트 스타일 무기 선택 시스템</p>
+    <div class="controls-grid">
+      <div class="ctrl-row"><kbd>W A S D</kbd> 이동</div>
+      <div class="ctrl-row"><kbd>마우스</kbd> 시점 이동</div>
+      <div class="ctrl-row"><kbd>좌클릭</kbd> 사격</div>
+      <div class="ctrl-row"><kbd>R</kbd> 재장전</div>
+      <div class="ctrl-row"><kbd>B</kbd> 구매 메뉴</div>
+      <div class="ctrl-row"><kbd>1</kbd> 보조 무기</div>
+      <div class="ctrl-row"><kbd>2</kbd> 주무기</div>
+      <div class="ctrl-row"><kbd>스크롤</kbd> 무기 전환</div>
+      <div class="ctrl-row"><kbd>G</kbd> 주무기 버리기</div>
+      <div class="ctrl-row"><kbd>ESC</kbd> 마우스 잠금 해제</div>
+    </div>
+    <button id="start-btn">▶ 게임 시작</button>
+  </div>
+</div>
+
+<!-- ── GAME CANVAS ───────────────────────────────────────── -->
+<div id="game-canvas"></div>
+
+<!-- ── HUD ──────────────────────────────────────────────── -->
+<div id="hud">
+
+  <!-- Top bar: score / round / money -->
+  <div id="hud-top">
+    <div class="hud-block">
+      <span class="lbl">SCORE</span>
+      <span class="val" id="score">0</span>
+    </div>
+    <div id="money">$3000</div>
+  </div>
+
+  <!-- Bottom left: health & armor -->
+  <div id="hud-bl">
+    <div class="stat-pill">
+      <span class="ico">❤️</span>
+      <span class="val" id="health">100</span>
+    </div>
+    <div class="stat-pill">
+      <span class="ico">🛡️</span>
+      <span class="val" id="armor">0</span>
+    </div>
+  </div>
+
+  <!-- Bottom right: weapon slots + ammo -->
+  <div id="hud-br">
+    <div id="weapon-slots">
+      <div class="wslot" id="slot-primary"><span class="sempty">— 주무기 없음</span></div>
+      <div class="wslot active" id="slot-secondary">
+        <span class="sname">Classic</span><span class="sammo">12</span>
+      </div>
+    </div>
+    <div id="ammo-box">
+      <span id="weapon-name">Classic</span>
+      <div id="ammo-row">
+        <span id="ammo-current">12</span>
+        <span id="ammo-sep">/</span>
+        <span id="ammo-reserve">36</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Center: crosshair -->
+  <div id="crosshair">
+    <div class="ch ch-t"></div>
+    <div class="ch ch-b"></div>
+    <div class="ch ch-l"></div>
+    <div class="ch ch-r"></div>
+    <div class="ch ch-dot"></div>
+  </div>
+
+  <!-- Hit marker -->
+  <div id="hit-marker"></div>
+
+  <!-- Reload bar -->
+  <div id="reload-bar">
+    <div id="reload-lbl">RELOADING</div>
+    <div id="reload-track"><div id="reload-fill"></div></div>
+  </div>
+
+  <!-- Kill feed -->
+  <div id="kill-feed"></div>
+
+  <!-- Damage numbers -->
+  <div id="damage-numbers"></div>
+
+  <!-- Message toast -->
+  <div id="message"></div>
+
+  <!-- Buy hint -->
+  <div id="buy-hint">[ B ] 구매 메뉴</div>
+</div>
+
+<!-- ── BUY MENU ──────────────────────────────────────────── -->
+<div id="buy-menu">
+  <div id="buy-inner">
+    <div id="buy-header">
+      <h2>🛒 무기 구매</h2>
+      <div id="buy-money-area">
+        <span id="buy-money-lbl">보유 금액</span>
+        <span id="buy-money-val">$3000</span>
+      </div>
+      <button id="buy-close">✕ 닫기 [ESC]</button>
+    </div>
+    <div id="buy-tabs"></div>
+    <div id="buy-content"></div>
+  </div>
+</div>
+
+<!-- ── Scripts ───────────────────────────────────────────── -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="js/weapons.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/game.js"></script>
+<script>
+  window.addEventListener('load', () => {
+    window.game = new FPSGame();
+  });
+</script>
+</body>
+</html>
