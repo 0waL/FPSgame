@@ -6,7 +6,6 @@ class GameUI {
     this.hitMarkerTimer = null;
     this.crosshairTimer = null;
     this.msgTimer = null;
-    this._activeBuyCategory = WEAPON_CATEGORIES[0];
     this.setupHUD();
     this.setupBuyMenu();
     this.setupStartScreen();
@@ -156,95 +155,62 @@ class GameUI {
   // ── BUY MENU ───────────────────────────────────────────
 
   setupBuyMenu() {
-    const tabsEl = document.getElementById('buy-tabs');
+    const grid = document.getElementById('buy-grid');
+    this._buildBuyGrid(grid);
+    document.getElementById('buy-close').addEventListener('click', () => this.game.closeBuyMenu());
+  }
 
-    WEAPON_CATEGORIES.forEach((cat, i) => {
-      const tab = document.createElement('div');
-      tab.className = 'buy-tab' + (i === 0 ? ' active' : '');
-      tab.innerHTML = `${cat.icon} ${cat.name}`;
-      tab.addEventListener('click', () => {
-        document.querySelectorAll('.buy-tab').forEach(t => t.classList.remove('active'));
-        tab.classList.add('active');
-        this._activeBuyCategory = cat;
-        this._renderBuyCategory(cat);
+  _buildBuyGrid(grid) {
+    grid.innerHTML = '';
+    WEAPON_CATEGORIES.forEach(cat => {
+      const col = document.createElement('div');
+      col.className = 'buy-col';
+
+      const hdr = document.createElement('div');
+      hdr.className = 'buy-col-hdr';
+      hdr.textContent = cat.name;
+      col.appendChild(hdr);
+
+      cat.weapons.forEach(wid => {
+        const w = WEAPONS[wid];
+        const canAfford  = this.game.player.money >= w.price;
+        const isEquipped = this.game.weapons.primary === wid || this.game.weapons.secondary === wid;
+
+        const card = document.createElement('div');
+        card.className = 'wcard' + (isEquipped ? ' equipped' : '') + (!canAfford && !isEquipped ? ' cant-afford' : '');
+
+        card.innerHTML = `
+          <div class="wsil type-${w.type}"></div>
+          <div class="wcard-body">
+            <span class="wcard-name">${w.name}</span>
+            <span class="wcard-price ${canAfford || isEquipped ? 'yes' : 'no'}">${w.price === 0 ? 'FREE' : '$' + w.price.toLocaleString()}</span>
+          </div>
+          ${isEquipped ? '<div class="wcard-owned">✓</div>' : ''}
+        `;
+
+        if (!isEquipped && canAfford) {
+          card.addEventListener('click', () => {
+            this.game.buyWeapon(wid);
+            this._buildBuyGrid(grid);
+            document.getElementById('buy-money-val').textContent = '$' + this.game.player.money.toLocaleString();
+          });
+        }
+
+        col.appendChild(card);
       });
-      tabsEl.appendChild(tab);
-    });
 
-    document.getElementById('buy-close').addEventListener('click', () => {
-      this.game.closeBuyMenu();
+      grid.appendChild(col);
     });
-
-    this._renderBuyCategory(WEAPON_CATEGORIES[0]);
   }
 
   showBuyMenu() {
-    const el = document.getElementById('buy-menu');
-    el.classList.add('visible');
-    document.getElementById('buy-money-val').textContent = '$' + this.game.player.money;
-    this._renderBuyCategory(this._activeBuyCategory);
+    document.getElementById('buy-menu').classList.add('visible');
+    document.getElementById('buy-money-val').textContent = '$' + this.game.player.money.toLocaleString();
+    this._buildBuyGrid(document.getElementById('buy-grid'));
   }
 
   hideBuyMenu() {
     document.getElementById('buy-menu').classList.remove('visible');
-  }
-
-  _renderBuyCategory(cat) {
-    const content = document.getElementById('buy-content');
-    content.innerHTML = '';
-    // Update money in header whenever rendering
-    const moneyEl = document.getElementById('buy-money-val');
-    if (moneyEl) moneyEl.textContent = '$' + this.game.player.money;
-
-    cat.weapons.forEach(wid => {
-      const w = WEAPONS[wid];
-      const canAfford  = this.game.player.money >= w.price;
-      const isEquipped = this.game.weapons.primary === wid || this.game.weapons.secondary === wid;
-
-      const card = document.createElement('div');
-      card.className = 'wcard' +
-        (isEquipped  ? ' equipped'    : '') +
-        (!canAfford  ? ' cant-afford' : '');
-
-      const dmgPct  = Math.min(100, (w.damage / 1.55)).toFixed(0);
-      const firePct = Math.min(100, Math.max(0, 100 - w.fireRate / 20)).toFixed(0);
-      const magPct  = Math.min(100, w.magazineSize).toFixed(0);
-      const fireLabel = w.auto
-        ? (w.fireRate < 120 ? '완전자동' : `${Math.round(60000 / w.fireRate)} RPM`)
-        : '반자동';
-
-      card.innerHTML = `
-        <div class="wcard-top">
-          <span class="wcard-name">${w.name}</span>
-          <span class="wcard-price ${canAfford ? 'yes' : 'no'}">$${w.price}</span>
-        </div>
-        <div class="wcard-sil type-${w.type}"></div>
-        <div class="wcard-stats">
-          <div class="stat-row"><span>피해</span><div class="sbar"><div class="sfill" style="width:${dmgPct}%"></div></div><span class="sval">${w.damage}</span></div>
-          <div class="stat-row"><span>연사</span><div class="sbar"><div class="sfill" style="width:${firePct}%"></div></div><span class="sval">${fireLabel}</span></div>
-          <div class="stat-row"><span>탄창</span><div class="sbar"><div class="sfill" style="width:${magPct}%"></div></div><span class="sval">${w.magazineSize}</span></div>
-        </div>
-        <div class="wcard-desc">${w.description}</div>
-        <div class="wcard-foot">
-          <span class="wtype-badge">${w.type.toUpperCase()}</span>
-          ${isEquipped
-            ? '<span class="badge-equipped">✓ 장착됨</span>'
-            : canAfford
-              ? `<button class="btn-buy">구매</button>`
-              : `<span class="badge-short">$${w.price - this.game.player.money} 부족</span>`
-          }
-        </div>`;
-
-      if (!isEquipped && canAfford) {
-        card.querySelector('.btn-buy').addEventListener('click', (e) => {
-          e.stopPropagation();
-          this.game.buyWeapon(wid);
-          this._renderBuyCategory(cat);
-        });
-      }
-
-      content.appendChild(card);
-    });
   }
 
   // ── START SCREEN ───────────────────────────────────────

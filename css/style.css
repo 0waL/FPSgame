@@ -360,6 +360,32 @@ kbd {
 #message.error   { border-color: #FF4444; color: #FF9999; }
 #message.success { border-color: #44EE44; color: #99FF99; }
 
+/* ── SCOPE OVERLAY ────────────────────────────────────── */
+#scope-overlay {
+  position: fixed;
+  inset: 0;
+  background: radial-gradient(circle 220px at 50% 50%, transparent 218px, rgba(0,0,0,0.97) 220px);
+  z-index: 18;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.08s;
+}
+#scope-overlay.visible { opacity: 1; }
+#scope-overlay::before {
+  content: '';
+  position: absolute;
+  top: 0; left: calc(50% - 0.5px);
+  width: 1px; height: 100%;
+  background: rgba(255,255,255,0.25);
+}
+#scope-overlay::after {
+  content: '';
+  position: absolute;
+  left: 0; top: calc(50% - 0.5px);
+  width: 100%; height: 1px;
+  background: rgba(255,255,255,0.25);
+}
+
 /* ── BUY MENU ─────────────────────────────────────────── */
 #buy-menu {
   position: fixed;
@@ -422,158 +448,123 @@ kbd {
 }
 #buy-close:hover { background: rgba(255,60,60,0.35); }
 
-#buy-tabs {
+/* Buy menu 그리드 */
+#buy-grid {
   display: flex;
-  background: #151617;
-  border-bottom: 1px solid rgba(255,255,255,0.06);
-  flex-shrink: 0;
+  gap: 10px;
+  padding: 16px 20px;
   overflow-x: auto;
-}
-
-.buy-tab {
-  padding: 11px 22px;
-  color: #555;
-  cursor: pointer;
-  font-size: 0.82em;
-  letter-spacing: 1px;
-  border-bottom: 2px solid transparent;
-  transition: color 0.15s, background 0.15s;
-  white-space: nowrap;
-}
-.buy-tab:hover  { color: #aaa; background: rgba(255,255,255,0.03); }
-.buy-tab.active { color: #fff; border-bottom-color: #FF3C3C; background: rgba(255,60,60,0.06); }
-
-#buy-content {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
-  gap: 12px;
-  padding: 18px;
-  overflow-y: auto;
   flex: 1;
+  align-items: flex-start;
+}
+#buy-grid::-webkit-scrollbar { height: 4px; }
+#buy-grid::-webkit-scrollbar-thumb { background: #333; border-radius: 2px; }
+
+.buy-col {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 145px;
+  flex-shrink: 0;
 }
 
-/* Scrollbar */
-#buy-content::-webkit-scrollbar { width: 5px; }
-#buy-content::-webkit-scrollbar-track { background: transparent; }
-#buy-content::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+.buy-col-hdr {
+  color: #777;
+  font-size: 0.68em;
+  letter-spacing: 2px;
+  text-align: center;
+  padding: 4px 0 8px;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+  margin-bottom: 2px;
+}
 
 /* ── WEAPON CARD ──────────────────────────────────────── */
 .wcard {
-  background: #1C1D1F;
+  background: rgba(255,255,255,0.05);
   border: 1px solid rgba(255,255,255,0.07);
-  border-radius: 10px;
-  padding: 14px;
-  transition: border-color 0.15s, background 0.15s, transform 0.1s;
+  border-radius: 6px;
+  padding: 8px 10px;
+  cursor: pointer;
+  transition: border-color 0.12s, background 0.12s;
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 5px;
 }
-.wcard:hover:not(.cant-afford) { border-color: rgba(255,255,255,0.2); background: #222325; transform: translateY(-1px); }
-.wcard.equipped   { border-color: rgba(68,255,68,0.5); background: rgba(68,255,68,0.04); }
-.wcard.cant-afford { opacity: 0.46; }
-
-.wcard-top {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+.wcard:hover:not(.cant-afford) {
+  border-color: rgba(255,255,255,0.22);
+  background: rgba(255,255,255,0.1);
 }
-.wcard-name { color: #eee; font-weight: 700; font-size: 0.95em; }
-.wcard-price { font-size: 0.9em; font-weight: 700; }
-.wcard-price.yes { color: #FFD700; }
-.wcard-price.no  { color: #555; }
+.wcard.equipped {
+  border-color: rgba(0,200,160,0.6);
+  background: rgba(0,200,160,0.07);
+}
+.wcard.cant-afford { opacity: 0.38; cursor: default; }
 
-/* Silhouette preview */
-.wcard-sil {
+/* 무기 실루엣 */
+.wsil {
+  position: relative;
   height: 28px;
   display: flex;
   align-items: center;
-  margin: 4px 0;
 }
-.wcard-sil::after {
+.wsil::before {
   content: '';
-  display: block;
-  height: 12px;
-  background: rgba(255,255,255,0.14);
-  border-radius: 3px;
+  position: absolute;
+  background: rgba(255,255,255,0.45);
+  border-radius: 2px 5px 2px 3px;
 }
-.type-pistol::after  { width: 55px; }
-.type-smg::after     { width: 85px; }
-.type-rifle::after   { width: 140px; height: 10px; }
-.type-sniper::after  { width: 160px; height: 8px; }
-.type-shotgun::after { width: 105px; height: 14px; }
-.type-mg::after      { width: 130px; height: 16px; }
-
-/* Stat bars */
-.wcard-stats { display: flex; flex-direction: column; gap: 4px; }
-
-.stat-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 0.68em;
-}
-.stat-row > span:first-child { color: #555; width: 26px; text-align: right; letter-spacing: 1px; }
-.sbar {
-  flex: 1;
-  height: 3px;
-  background: rgba(255,255,255,0.08);
-  border-radius: 2px;
-  overflow: hidden;
-}
-.sfill {
-  height: 100%;
-  background: linear-gradient(to right, #FF5C3C, #FFAA3C);
-  border-radius: 2px;
-}
-.sval { color: #666; width: 56px; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
-.wcard-desc {
-  font-size: 0.7em;
-  color: #555;
-  line-height: 1.4;
-  flex: 1;
+.wsil::after {
+  content: '';
+  position: absolute;
+  background: rgba(255,255,255,0.3);
+  border-radius: 0 3px 3px 0;
 }
 
-.wcard-foot {
+/* 권총 */
+.type-pistol .wsil { width: 80px; }
+.type-pistol .wsil::before { top: 8px; left: 14px; width: 42px; height: 14px; }
+.type-pistol .wsil::after  { top: 12px; left: 54px; width: 16px; height: 7px; }
+
+/* SMG */
+.type-smg .wsil { width: 120px; }
+.type-smg .wsil::before { top: 8px; left: 10px; width: 72px; height: 14px; }
+.type-smg .wsil::after  { top: 11px; left: 80px; width: 30px; height: 8px; }
+
+/* 라이플 */
+.type-rifle .wsil { width: 145px; }
+.type-rifle .wsil::before { top: 8px; left: 6px; width: 100px; height: 14px; border-radius: 2px 3px 2px 6px; }
+.type-rifle .wsil::after  { top: 10px; left: 103px; width: 38px; height: 10px; }
+
+/* 스나이퍼 */
+.type-sniper .wsil { width: 145px; }
+.type-sniper .wsil::before { top: 9px; left: 5px; width: 110px; height: 12px; border-radius: 1px 2px 1px 7px; }
+.type-sniper .wsil::after  { top: 11px; left: 112px; width: 33px; height: 8px; }
+
+/* 샷건 */
+.type-shotgun .wsil { width: 130px; }
+.type-shotgun .wsil::before { top: 7px; left: 12px; width: 75px; height: 18px; border-radius: 2px 4px 3px 5px; }
+.type-shotgun .wsil::after  { top: 11px; left: 84px; width: 32px; height: 10px; }
+
+/* 기관총 */
+.type-mg .wsil { width: 145px; }
+.type-mg .wsil::before { top: 7px; left: 8px; width: 100px; height: 18px; border-radius: 2px 2px 2px 7px; }
+.type-mg .wsil::after  { top: 10px; left: 105px; width: 38px; height: 12px; }
+
+.wcard-body {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-top: 4px;
 }
+.wcard-name  { color: #ddd; font-size: 0.82em; font-weight: 600; }
+.wcard-price { font-size: 0.78em; font-weight: 700; }
+.wcard-price.yes { color: #FFD700; }
+.wcard-price.no  { color: #555; }
 
-.wtype-badge {
-  background: rgba(255,255,255,0.07);
-  color: #666;
-  padding: 2px 7px;
-  border-radius: 4px;
-  font-size: 0.65em;
-  letter-spacing: 1px;
-}
-
-.btn-buy {
-  background: #FF3C3C;
-  color: #fff;
-  border: none;
-  padding: 7px 16px;
-  border-radius: 5px;
-  cursor: pointer;
-  font-family: inherit;
-  font-size: 0.8em;
+.wcard-owned {
+  position: absolute;
+  top: 6px; right: 8px;
+  color: #00C8A0;
+  font-size: 0.85em;
   font-weight: 700;
-  letter-spacing: 2px;
-  transition: background 0.12s;
-}
-.btn-buy:hover { background: #FF6666; }
-
-.badge-equipped {
-  color: #44EE44;
-  font-size: 0.78em;
-  font-weight: 700;
-  letter-spacing: 1px;
-}
-
-.badge-short {
-  color: #FF5555;
-  font-size: 0.72em;
 }
