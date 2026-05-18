@@ -30,6 +30,9 @@ class FPSGame {
     this.isPointerLocked = false;
     this.isADS = false;
 
+    // ── Weapon animation state ───────────────────────────
+    this.weaponAnim = { raiseT: 0, kickT: 0, adsT: 0, reloadT: 0 };
+
     // ── State ────────────────────────────────────────────
     this.state = 'lobby';
     this.score = 0;
@@ -43,8 +46,6 @@ class FPSGame {
     this.weaponCamera = null;
     this.weaponGroup = null;
     this.weaponBobT = 0;
-    this.weaponReloadAnim = false;
-    this.weaponKickT = 0; // recoil kick animation
 
     // ── Collision boxes (AABB list) ──────────────────────
     this.colliders = [];
@@ -445,6 +446,7 @@ class FPSGame {
     if (!this.weapons[slot]) return;
     this.weapons.currentSlot = slot;
     this._buildWeaponModel(this.weapons[slot]);
+    this.weaponAnim.raiseT = 0;
     this.ui?.updateHUD();
   }
 
@@ -496,7 +498,9 @@ class FPSGame {
 
   _performShot(wdef) {
     const moving = this.player.isMoving;
-    const spread = moving ? wdef.movementSpread : wdef.spread;
+    const spread = this.isADS
+      ? wdef.adsSpread
+      : (moving ? wdef.movementSpread : wdef.spread);
 
     const dir = new THREE.Vector3();
     this.camera.getWorldDirection(dir);
@@ -562,7 +566,7 @@ class FPSGame {
   }
 
   _kickWeapon() {
-    this.weaponKickT = 1.0;
+    this.weaponAnim.kickT = 1.0;
   }
 
   // ── Target damage ────────────────────────────────────
@@ -612,7 +616,6 @@ class FPSGame {
     if (!ammo || ammo.magazine >= w.magazineSize || ammo.reserve <= 0) return;
 
     this.weapons.isReloading   = true;
-    this.weaponReloadAnim       = true;
     this.ui.showReloadBar(w.reloadTime);
 
     clearTimeout(this.weapons.reloadTimer);
@@ -622,7 +625,6 @@ class FPSGame {
       ammo.magazine          += fill;
       ammo.reserve           -= fill;
       this.weapons.isReloading = false;
-      this.weaponReloadAnim    = false;
       this.ui.updateHUD();
     }, w.reloadTime);
   }
@@ -678,12 +680,33 @@ class FPSGame {
     this.camera.rotation.y = this.player.yaw;
     this.camera.rotation.x = this.player.pitch;
 
+    this._updateADS(dt);
     this._updateWeaponAnim(dt);
     this.ui.setCrosshairMoving(this.player.isMoving);
   }
 
+  _updateADS(dt) {
+    const target = this.isADS ? 1 : 0;
+    this.weaponAnim.adsT += (target - this.weaponAnim.adsT) * Math.min(1, dt * 14);
+
+    const wdef = this.getCurrentWeapon();
+    const isSniper = wdef?.type === 'sniper';
+    const fovTarget = 75 - this.weaponAnim.adsT * (isSniper ? 50 : 28);
+    this.camera.fov += (fovTarget - this.camera.fov) * Math.min(1, dt * 12);
+    this.camera.updateProjectionMatrix();
+
+    // 스나이퍼 스코프 오버레이
+    const scopeEl = document.getElementById('scope-overlay');
+    if (scopeEl) {
+      scopeEl.classList.toggle('visible', isSniper && this.weaponAnim.adsT > 0.88);
+      document.getElementById('crosshair').style.opacity = isSniper && this.weaponAnim.adsT > 0.88 ? '0' : '1';
+    }
+  }
+
   _updateMovement(dt) {
-    const speed = 5.2;
+    const isCrouching = !!this.keys['ControlLeft'];
+    const isWalking   = !!this.keys['ShiftLeft'];
+    const speed = 5.2 * (isCrouching ? 0.45 : isWalking ? 0.55 : 1.0) * (this.weaponAnim.adsT > 0.1 ? 0.85 : 1.0);
     const dir   = new THREE.Vector3();
 
     if (this.keys['KeyW']) dir.z -= 1;
@@ -701,8 +724,14 @@ class FPSGame {
       this.player.pos.copy(next);
     }
 
-    // Jump
-    if (this.keys['Space'] && this.player.onGround) {
+    // 크라우치 높이
+    const targetFloor = isCrouching ? 1.05 : 1.65;
+    if (this.player.onGround) {
+      this.player.pos.y += (targetFloor - this.player.pos.y) * Math.min(1, dt * 10);
+    }
+
+    // Jump (크라우치 중 점프 금지)
+    if (this.keys['Space'] && this.player.onGround && !isCrouching) {
       this.player.vel.y = 5.5;
       this.player.onGround = false;
     }
@@ -710,8 +739,8 @@ class FPSGame {
     if (!this.player.onGround) {
       this.player.vel.y -= 16 * dt;
       this.player.pos.y += this.player.vel.y * dt;
-      if (this.player.pos.y <= 1.65) {
-        this.player.pos.y    = 1.65;
+      if (this.player.pos.y <= targetFloor) {
+        this.player.pos.y    = targetFloor;
         this.player.vel.y    = 0;
         this.player.onGround = true;
       }
@@ -719,23 +748,42 @@ class FPSGame {
   }
 
   _updateWeaponAnim(dt) {
-    if (this.player.isMoving) this.weaponBobT += dt * 9;
+    const anim = this.weaponAnim;
 
-    const bobX = Math.sin(this.weaponBobT)        * 0.012;
-    const bobY = Math.abs(Math.sin(this.weaponBobT)) * 0.006;
+    // 무기 들기 애니메이션 (0→1, 빠르게)
+    anim.raiseT = Math.min(1, anim.raiseT + dt * 7);
 
-    // Recoil kick
-    if (this.weaponKickT > 0) {
-      this.weaponKickT = Math.max(0, this.weaponKickT - dt * 12);
+    // 반동 감소
+    if (anim.kickT > 0) anim.kickT = Math.max(0, anim.kickT - dt * 14);
+
+    // 재장전 애니메이션 진행
+    const wdef = this.getCurrentWeapon();
+    if (this.weapons.isReloading) {
+      anim.reloadT = Math.min(1, anim.reloadT + dt * (1000 / (wdef?.reloadTime || 2000)));
+    } else {
+      anim.reloadT = Math.max(0, anim.reloadT - dt * 6);
     }
-    const kickZ = this.weaponKickT * 0.04;
 
-    let targetY = -0.21 + bobY;
-    if (this.weaponReloadAnim) targetY -= 0.12;
+    // 밥 (ADS 중엔 없앰)
+    const bobMult = 1 - anim.adsT;
+    if (this.player.isMoving) this.weaponBobT += dt * 9;
+    const bobX = Math.sin(this.weaponBobT) * 0.012 * bobMult;
+    const bobY = Math.abs(Math.sin(this.weaponBobT)) * 0.006 * bobMult;
 
-    this.weaponGroup.position.x = 0.19 + bobX;
-    this.weaponGroup.position.y += (targetY - this.weaponGroup.position.y) * 0.25;
-    this.weaponGroup.position.z = -0.38 + kickZ;
-    this.weaponGroup.rotation.x = this.weaponKickT * 0.06;
+    // 위치 계산
+    const raiseOff  = (1 - anim.raiseT) * 0.4;
+    const reloadOff = Math.sin(anim.reloadT * Math.PI) * 0.13;
+    const reloadRot = Math.sin(anim.reloadT * Math.PI) * 0.3;
+    const kickZ     = anim.kickT * 0.04;
+
+    const px = (0.19 + (0 - 0.19) * anim.adsT) + bobX;
+    const py = (-0.21 + (-0.14 - (-0.21)) * anim.adsT) + bobY - raiseOff - reloadOff;
+
+    this.weaponGroup.position.set(px, py, -0.38 + kickZ);
+    this.weaponGroup.rotation.x = anim.kickT * 0.06 + reloadRot;
+
+    // 스나이퍼 완전 조준 시 총 모델 숨김
+    const isSniper = wdef?.type === 'sniper';
+    this.weaponGroup.visible = !(isSniper && anim.adsT > 0.9);
   }
 }
