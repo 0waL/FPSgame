@@ -50,6 +50,11 @@ class FPSGame {
     // ── Collision boxes (AABB list) ──────────────────────
     this.colliders = [];
 
+    // ── Environment meshes & bullet holes ────────────────
+    this.envMeshes   = [];
+    this.bulletHoles = [];
+    this._bulletHoleTex = null;
+
     this._init();
   }
 
@@ -65,6 +70,8 @@ class FPSGame {
     this._setupTargets();
     this._setupWeaponGroup();
     this._setupControls();
+
+    this._bulletHoleTex = this._createBulletHoleTexture();
 
     // Give default pistol ammo
     this._initAmmo('classic');
@@ -106,11 +113,13 @@ class FPSGame {
     this.weaponScene = new THREE.Scene();
     this.weaponCamera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.01, 10);
 
-    const wAmbient = new THREE.AmbientLight(0xffffff, 0.9);
-    this.weaponScene.add(wAmbient);
-    const wDir = new THREE.DirectionalLight(0xffffff, 0.6);
+    this.weaponScene.add(new THREE.AmbientLight(0xffffff, 0.6));
+    const wDir = new THREE.DirectionalLight(0xffffff, 0.9);
     wDir.position.set(1, 2, 2);
     this.weaponScene.add(wDir);
+    const wDir2 = new THREE.DirectionalLight(0x8899bb, 0.4);
+    wDir2.position.set(-2, 0, 1);
+    this.weaponScene.add(wDir2);
   }
 
   _setupLighting() {
@@ -143,6 +152,7 @@ class FPSGame {
     floor.rotation.x = -Math.PI / 2;
     floor.receiveShadow = true;
     this.scene.add(floor);
+    this.envMeshes.push(floor);
 
     // Grid
     const grid = new THREE.GridHelper(80, 40, 0x777766, 0x888877);
@@ -162,6 +172,7 @@ class FPSGame {
       mesh.castShadow = true;
       mesh.receiveShadow = true;
       this.scene.add(mesh);
+      this.envMeshes.push(mesh);
       this.colliders.push({ min: new THREE.Vector3(w.pos[0]-w.size[0]/2, 0, w.pos[2]-w.size[2]/2),
                             max: new THREE.Vector3(w.pos[0]+w.size[0]/2, w.size[1], w.pos[2]+w.size[2]/2) });
     });
@@ -186,6 +197,7 @@ class FPSGame {
       mesh.castShadow = true;
       mesh.receiveShadow = true;
       this.scene.add(mesh);
+      this.envMeshes.push(mesh);
       this.colliders.push({ min: new THREE.Vector3(b.pos[0]-b.size[0]/2, 0, b.pos[2]-b.size[2]/2),
                             max: new THREE.Vector3(b.pos[0]+b.size[0]/2, h, b.pos[2]+b.size[2]/2) });
     });
@@ -262,23 +274,32 @@ class FPSGame {
     }
 
     const w = WEAPONS[wid];
-    const gMat = new THREE.MeshLambertMaterial({ color: w.color });
-    const dMat = new THREE.MeshLambertMaterial({ color: 0x1a1a1a });
-    const hMat = new THREE.MeshLambertMaterial({ color: 0xC49A5A });
+    // MeshPhongMaterial for metallic sheen
+    const gMat = new THREE.MeshPhongMaterial({ color: w.color,     shininess: 90, specular: 0x666666 });
+    const dMat = new THREE.MeshPhongMaterial({ color: 0x111111,    shininess: 70, specular: 0x444444 });
+    const hMat = new THREE.MeshPhongMaterial({ color: 0xBB8855,    shininess: 15, specular: 0x110800 });
+    const wdMat= new THREE.MeshPhongMaterial({ color: 0x6B3A1F,    shininess: 20, specular: 0x220E00 }); // wood
 
-    // Hand
+    // Hand / grip
     const hand = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.16, 0.09), hMat);
     hand.position.set(0.04, -0.13, -0.08);
     this.weaponGroup.add(hand);
 
+    // Second hand for long guns
+    if (['rifle', 'smg', 'mg', 'sniper'].includes(w.type)) {
+      const hand2 = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.12, 0.07), hMat);
+      hand2.position.set(0.02, -0.11, -0.26);
+      this.weaponGroup.add(hand2);
+    }
+
     switch (w.type) {
-      case 'pistol':   this._buildPistol(gMat, dMat); break;
-      case 'smg':      this._buildSMG(gMat, dMat); break;
-      case 'rifle':    this._buildRifle(gMat, dMat); break;
-      case 'sniper':   this._buildSniper(gMat, dMat); break;
-      case 'shotgun':  this._buildShotgun(gMat, dMat); break;
+      case 'pistol':   this._buildPistol(gMat, dMat, w.id); break;
+      case 'smg':      this._buildSMG(gMat, dMat, w.id); break;
+      case 'rifle':    this._buildRifle(gMat, dMat, wdMat, w.id); break;
+      case 'sniper':   this._buildSniper(gMat, dMat, wdMat, w.id); break;
+      case 'shotgun':  this._buildShotgun(gMat, dMat, wdMat, w.id); break;
       case 'mg':       this._buildMG(gMat, dMat); break;
-      default:         this._buildPistol(gMat, dMat);
+      default:         this._buildPistol(gMat, dMat, w.id);
     }
 
     this.weaponGroup.position.set(0.19, -0.21, -0.38);
@@ -292,60 +313,166 @@ class FPSGame {
     return m;
   }
 
-  _buildPistol(g, d) {
-    this._add(new THREE.BoxGeometry(0.06, 0.07, 0.22), g, 0, 0.02, 0);
-    this._add(new THREE.BoxGeometry(0.055, 0.045, 0.18), g, 0, -0.02, 0.01);
-    this._add(new THREE.CylinderGeometry(0.012, 0.012, 0.07, 6), d, 0, 0.02, -0.16, Math.PI/2, 0, 0);
-    this._add(new THREE.BoxGeometry(0.055, 0.13, 0.045), d, 0, -0.1, 0.04);
+  _buildPistol(g, d, id) {
+    if (id === 'sheriff') {
+      // Desert Eagle — large, angular, imposing
+      this._add(new THREE.BoxGeometry(0.072, 0.088, 0.26), g, 0, 0.01, 0);             // wide slide
+      this._add(new THREE.BoxGeometry(0.068, 0.055, 0.21), g, 0, -0.025, 0.01);       // frame
+      this._add(new THREE.CylinderGeometry(0.014, 0.014, 0.1, 8), d, 0, 0.01, -0.18, Math.PI/2);  // barrel
+      this._add(new THREE.BoxGeometry(0.065, 0.155, 0.055), g, 0, -0.11, 0.05);       // grip
+      this._add(new THREE.BoxGeometry(0.005, 0.088, 0.002), d,  0.037, 0.01, 0);      // left rail
+      this._add(new THREE.BoxGeometry(0.005, 0.088, 0.002), d, -0.037, 0.01, 0);      // right rail
+      this._add(new THREE.BoxGeometry(0.004, 0.012, 0.007), d, 0, 0.055, -0.115);     // front sight
+      this._add(new THREE.BoxGeometry(0.004, 0.012, 0.007), d, -0.014, 0.055, 0.11);  // rear sight L
+      this._add(new THREE.BoxGeometry(0.004, 0.012, 0.007), d,  0.014, 0.055, 0.11);  // rear sight R
+    } else {
+      // Glock-17 — slim polymer pistol
+      this._add(new THREE.BoxGeometry(0.056, 0.068, 0.21), g, 0, 0.024, 0);           // slide
+      this._add(new THREE.BoxGeometry(0.054, 0.040, 0.17), g, 0, -0.016, 0.01);       // frame
+      this._add(new THREE.CylinderGeometry(0.011, 0.011, 0.065, 8), d, 0, 0.024, -0.15, Math.PI/2); // barrel tip
+      this._add(new THREE.BoxGeometry(0.052, 0.140, 0.048), g, 0, -0.098, 0.038);     // grip
+      this._add(new THREE.BoxGeometry(0.004, 0.010, 0.006), d, 0, 0.060, -0.09);      // front sight
+      this._add(new THREE.BoxGeometry(0.004, 0.010, 0.006), d, -0.01, 0.060, 0.08);   // rear sight L
+      this._add(new THREE.BoxGeometry(0.004, 0.010, 0.006), d,  0.01, 0.060, 0.08);   // rear sight R
+      for (let i = 0; i < 5; i++) { // slide serrations
+        this._add(new THREE.BoxGeometry(0.058, 0.055, 0.002), d, 0, 0.024, 0.05 + i * 0.011);
+      }
+    }
   }
 
-  _buildSMG(g, d) {
-    this._add(new THREE.BoxGeometry(0.07, 0.075, 0.38), g, 0, 0, 0);
-    this._add(new THREE.CylinderGeometry(0.014, 0.014, 0.12, 6), d, 0, 0.005, -0.25, Math.PI/2, 0, 0);
-    this._add(new THREE.CylinderGeometry(0.020, 0.020, 0.08, 8), d, 0, 0.005, -0.33, Math.PI/2, 0, 0);
-    this._add(new THREE.BoxGeometry(0.05, 0.04, 0.12), g, 0, 0, 0.25);
-    this._add(new THREE.BoxGeometry(0.05, 0.15, 0.04), d, 0, -0.11, 0.04);
+  _buildSMG(g, d, id) {
+    if (id === 'spectre') {
+      // MP5-SD — integrated suppressor dominates profile
+      this._add(new THREE.BoxGeometry(0.065, 0.075, 0.34), g, 0, 0, 0);              // receiver
+      this._add(new THREE.CylinderGeometry(0.026, 0.026, 0.30, 10), d, 0, 0.005, -0.32, Math.PI/2); // suppressor
+      this._add(new THREE.BoxGeometry(0.055, 0.038, 0.10), g, 0, 0, 0.27);           // stock base
+      this._add(new THREE.BoxGeometry(0.014, 0.014, 0.18), d, 0.02, 0.006, 0.38);    // stock tube top
+      this._add(new THREE.BoxGeometry(0.014, 0.014, 0.18), d,-0.02, 0.006, 0.38);    // stock tube bot
+      this._add(new THREE.BoxGeometry(0.055, 0.016, 0.01), d, 0, 0.006, 0.47);       // stock end
+      this._add(new THREE.BoxGeometry(0.048, 0.150, 0.040), d, 0, -0.108, 0.04);     // magazine
+    } else {
+      // MP9 — very compact, minimal stock
+      this._add(new THREE.BoxGeometry(0.062, 0.072, 0.30), g, 0, 0, 0);              // receiver
+      this._add(new THREE.CylinderGeometry(0.013, 0.013, 0.10, 8), d, 0, 0.005, -0.22, Math.PI/2); // barrel
+      this._add(new THREE.BoxGeometry(0.052, 0.040, 0.08), g, 0, 0, 0.20);           // stub stock
+      this._add(new THREE.BoxGeometry(0.048, 0.130, 0.036), d, 0, -0.095, 0.04);     // curved mag
+      this._add(new THREE.BoxGeometry(0.060, 0.012, 0.12), d, 0, 0.044, -0.06);      // top rail
+    }
   }
 
-  _buildRifle(g, d) {
-    this._add(new THREE.BoxGeometry(0.07, 0.08, 0.58), g, 0, 0, 0);
-    this._add(new THREE.BoxGeometry(0.065, 0.065, 0.26), d, 0, -0.007, -0.22);
-    this._add(new THREE.CylinderGeometry(0.012, 0.012, 0.22, 6), d, 0, 0.01, -0.46, Math.PI/2, 0, 0);
-    this._add(new THREE.BoxGeometry(0.05, 0.055, 0.22), g, 0, -0.01, 0.38);
-    this._add(new THREE.BoxGeometry(0.055, 0.19, 0.05), d, 0, -0.14, 0.05, 0.18, 0, 0);
-    this._add(new THREE.BoxGeometry(0.03, 0.014, 0.22), d, 0, 0.048, 0);
+  _buildRifle(g, d, wd, id) {
+    if (id === 'vandal') {
+      // AK-47 — iconic curved mag, wooden furniture
+      this._add(new THREE.BoxGeometry(0.068, 0.080, 0.54), g, 0, 0, 0);              // receiver
+      this._add(new THREE.BoxGeometry(0.062, 0.068, 0.22), wd, 0,-0.006,-0.20);      // wood handguard
+      this._add(new THREE.CylinderGeometry(0.011, 0.011, 0.26, 8), d, 0, 0.01,-0.48, Math.PI/2); // barrel
+      this._add(new THREE.BoxGeometry(0.032, 0.016, 0.05), d, 0, 0.01,-0.62);        // muzzle brake
+      this._add(new THREE.BoxGeometry(0.050, 0.060, 0.24), wd, 0,-0.01, 0.39);       // wood stock
+      this._add(new THREE.BoxGeometry(0.048, 0.080, 0.05), wd, 0,-0.01, 0.52);       // stock butt
+      // Curved banana magazine
+      this._add(new THREE.BoxGeometry(0.056, 0.080, 0.052), d, 0,-0.09, 0.04, 0.18);
+      this._add(new THREE.BoxGeometry(0.056, 0.080, 0.052), d, 0,-0.15,-0.02, 0.10);
+      this._add(new THREE.BoxGeometry(0.028, 0.012, 0.22), d, 0, 0.048, 0);          // top rail
+    } else if (id === 'phantom') {
+      // M4A1-S — suppressor + collapsible stock
+      this._add(new THREE.BoxGeometry(0.066, 0.078, 0.50), g, 0, 0, 0);              // receiver
+      this._add(new THREE.BoxGeometry(0.060, 0.062, 0.22), d, 0,-0.005,-0.21);       // handguard
+      this._add(new THREE.CylinderGeometry(0.011, 0.011, 0.18, 8), d, 0, 0.01,-0.44, Math.PI/2); // barrel
+      this._add(new THREE.CylinderGeometry(0.020, 0.020, 0.18, 10), d, 0, 0.01,-0.60, Math.PI/2); // suppressor
+      this._add(new THREE.BoxGeometry(0.030, 0.012, 0.14), d, 0, 0.048, 0.05);       // top rail
+      this._add(new THREE.CylinderGeometry(0.014, 0.014, 0.22, 6), d, 0, 0.002, 0.38, Math.PI/2); // buffer tube
+      this._add(new THREE.BoxGeometry(0.048, 0.048, 0.07), g, 0,-0.002, 0.50);       // stock
+      this._add(new THREE.BoxGeometry(0.052, 0.165, 0.048), d, 0,-0.13, 0.05);       // magazine
+    } else {
+      // FAMAS — bullpup: mag behind grip
+      this._add(new THREE.BoxGeometry(0.068, 0.080, 0.48), g, 0, 0, 0);              // receiver (bullpup)
+      this._add(new THREE.CylinderGeometry(0.011, 0.011, 0.20, 8), d, 0, 0.01,-0.42, Math.PI/2); // barrel
+      this._add(new THREE.BoxGeometry(0.066, 0.058, 0.14), d, 0,-0.008,-0.18);       // handguard
+      this._add(new THREE.BoxGeometry(0.036, 0.080, 0.12), g, 0, 0.030, 0.02);       // carry handle
+      this._add(new THREE.BoxGeometry(0.050, 0.150, 0.046), d, 0,-0.10, 0.16);       // magazine (behind grip)
+      this._add(new THREE.BoxGeometry(0.028, 0.012, 0.18), d, 0, 0.046, 0.04);       // rail
+    }
   }
 
-  _buildSniper(g, d) {
-    this._add(new THREE.BoxGeometry(0.06, 0.075, 0.74), g, 0, 0, 0);
-    this._add(new THREE.CylinderGeometry(0.013, 0.013, 0.42, 8), d, 0, 0.01, -0.58, Math.PI/2, 0, 0);
-    this._add(new THREE.BoxGeometry(0.042, 0.055, 0.26), g, 0, -0.01, 0.50);
-    this._add(new THREE.BoxGeometry(0.04, 0.105, 0.042), d, 0, -0.09, 0.12);
-    // Scope
-    this._add(new THREE.CylinderGeometry(0.025, 0.025, 0.22, 8), d, 0, 0.056, -0.02, Math.PI/2, 0, 0);
-    this._add(new THREE.CylinderGeometry(0.022, 0.022, 0.01, 8), new THREE.MeshLambertMaterial({ color: 0x4488DD }), 0, 0.056, -0.13, Math.PI/2, 0, 0);
-    this._add(new THREE.CylinderGeometry(0.022, 0.022, 0.01, 8), new THREE.MeshLambertMaterial({ color: 0x4488DD }), 0, 0.056,  0.09, Math.PI/2, 0, 0);
+  _buildSniper(g, d, wd, id) {
+    const isAWP = id === 'operator';
+    // Receiver
+    this._add(new THREE.BoxGeometry(0.058, 0.074, isAWP ? 0.82 : 0.68), g, 0, 0, 0);
+    // Barrel
+    this._add(new THREE.CylinderGeometry(0.012, 0.012, isAWP ? 0.50 : 0.38, 10), d, 0, 0.010, isAWP ? -0.68 : -0.60, Math.PI/2);
+    // Muzzle brake
+    this._add(new THREE.BoxGeometry(0.030, 0.022, 0.06), d, 0, 0.010, isAWP ? -0.95 : -0.81);
+    // Stock (wood)
+    this._add(new THREE.BoxGeometry(0.044, 0.058, 0.28), wd, 0,-0.010, isAWP ? 0.55 : 0.48);
+    this._add(new THREE.BoxGeometry(0.042, 0.082, 0.06), wd, 0,-0.010, isAWP ? 0.69 : 0.62); // butt
+    // Pistol grip
+    this._add(new THREE.BoxGeometry(0.048, 0.120, 0.046), d, 0,-0.090, isAWP ? 0.16 : 0.12);
+    // Magazine
+    this._add(new THREE.BoxGeometry(0.038, 0.090, 0.040), d, 0,-0.082, isAWP ? 0.26 : 0.22);
+    // Scope body
+    const scopeZ = isAWP ? 0.0 : -0.02;
+    this._add(new THREE.CylinderGeometry(0.026, 0.026, isAWP ? 0.28 : 0.24, 12), d, 0, 0.058, scopeZ, Math.PI/2);
+    // Scope objective (big lens)
+    const lMat = new THREE.MeshPhongMaterial({ color: 0x1133AA, shininess: 200, specular: 0x8899FF, transparent: true, opacity: 0.7 });
+    this._add(new THREE.CylinderGeometry(0.024, 0.024, 0.010, 12), lMat, 0, 0.058, scopeZ - (isAWP ? 0.145 : 0.125), Math.PI/2);
+    this._add(new THREE.CylinderGeometry(0.018, 0.018, 0.010, 12), lMat, 0, 0.058, scopeZ + (isAWP ? 0.145 : 0.125), Math.PI/2);
+    // Scope adjustment turrets
+    this._add(new THREE.CylinderGeometry(0.007, 0.007, 0.030, 6), d, 0,  0.088, scopeZ);  // top turret
+    this._add(new THREE.CylinderGeometry(0.007, 0.007, 0.030, 6), d, 0.038, 0.058, scopeZ); // side turret
+    // Bolt handle
+    this._add(new THREE.CylinderGeometry(0.006, 0.006, 0.060, 6), d, 0.048, 0.030, isAWP ? 0.08 : 0.06, 0, 0, Math.PI/2);
+    // Bipod (AWP only)
+    if (isAWP) {
+      const bMat = new THREE.MeshPhongMaterial({ color: 0x222222, shininess: 40 });
+      [-0.028, 0.028].forEach(x => {
+        this._add(new THREE.CylinderGeometry(0.005, 0.005, 0.18, 4), bMat, x,-0.09,-0.38, 0, 0, x > 0 ? -0.35 : 0.35);
+      });
+    }
   }
 
-  _buildShotgun(g, d) {
-    this._add(new THREE.BoxGeometry(0.082, 0.092, 0.42), g, 0, 0, 0);
-    this._add(new THREE.CylinderGeometry(0.023, 0.023, 0.34, 6), d, 0, 0.01, -0.38, Math.PI/2, 0, 0);
-    this._add(new THREE.BoxGeometry(0.075, 0.072, 0.13), d, 0, 0, -0.18);
-    this._add(new THREE.BoxGeometry(0.056, 0.072, 0.23), g, 0, -0.01, 0.32);
-    this._add(new THREE.CylinderGeometry(0.014, 0.014, 0.28, 6), d, 0, -0.035, -0.12, Math.PI/2, 0, 0);
+  _buildShotgun(g, d, wd, id) {
+    if (id === 'judge') {
+      // AA-12 — auto shotgun, drum mag
+      this._add(new THREE.BoxGeometry(0.085, 0.095, 0.44), g, 0, 0, 0);              // receiver
+      this._add(new THREE.CylinderGeometry(0.022, 0.022, 0.30, 8), d, 0, 0.01,-0.38, Math.PI/2); // barrel
+      this._add(new THREE.BoxGeometry(0.080, 0.080, 0.18), d, 0,-0.001,-0.16);       // handguard
+      this._add(new THREE.BoxGeometry(0.058, 0.060, 0.20), g, 0,-0.010, 0.34);       // stock
+      this._add(new THREE.CylinderGeometry(0.068, 0.068, 0.070, 14), d, 0,-0.085, 0.06, Math.PI/2); // drum mag
+      this._add(new THREE.BoxGeometry(0.028, 0.012, 0.22), d, 0, 0.050, 0);          // rail
+    } else {
+      // Remington 870 — classic pump
+      this._add(new THREE.BoxGeometry(0.080, 0.090, 0.44), g, 0, 0, 0);              // receiver
+      this._add(new THREE.CylinderGeometry(0.022, 0.022, 0.38, 8), d, 0, 0.014,-0.42, Math.PI/2); // barrel
+      this._add(new THREE.CylinderGeometry(0.014, 0.014, 0.26, 6), d, 0,-0.032,-0.18, Math.PI/2); // mag tube
+      this._add(new THREE.BoxGeometry(0.074, 0.072, 0.14), wd, 0,-0.001,-0.17);      // pump wood
+      this._add(new THREE.BoxGeometry(0.056, 0.075, 0.26), wd, 0,-0.010, 0.35);      // wood stock
+      this._add(new THREE.BoxGeometry(0.054, 0.095, 0.06), wd, 0,-0.010, 0.49);      // butt pad
+    }
   }
 
   _buildMG(g, d) {
-    this._add(new THREE.BoxGeometry(0.1, 0.105, 0.64), g, 0, 0, 0);
-    this._add(new THREE.CylinderGeometry(0.018, 0.018, 0.38, 8), d, 0, 0.01, -0.51, Math.PI/2, 0, 0);
-    this._add(new THREE.BoxGeometry(0.072, 0.072, 0.23), g, 0, -0.005, 0.43);
-    // Drum magazine
-    this._add(new THREE.CylinderGeometry(0.07, 0.07, 0.065, 12), d, 0.065, -0.065, 0.08, Math.PI/2, 0, 0);
+    const isOdin = this.weapons?.[this.weapons.currentSlot] === 'odin';
+    this._add(new THREE.BoxGeometry(0.098, 0.102, 0.62), g, 0, 0, 0);                // receiver
+    this._add(new THREE.BoxGeometry(0.090, 0.090, 0.26), d, 0,-0.004,-0.22);         // heat shield
+    // Perforated barrel shroud
+    this._add(new THREE.CylinderGeometry(0.016, 0.016, isOdin ? 0.44 : 0.38, 10), d, 0, 0.010, isOdin ? -0.56 : -0.50, Math.PI/2);
+    // Flash hider
+    this._add(new THREE.CylinderGeometry(0.020, 0.014, 0.04, 8), d, 0, 0.010, isOdin ? -0.79 : -0.70, Math.PI/2);
+    // Stock
+    this._add(new THREE.BoxGeometry(0.070, 0.072, 0.24), g, 0,-0.004, 0.44);
+    this._add(new THREE.BoxGeometry(0.068, 0.090, 0.06), g, 0,-0.004, 0.57);         // butt
+    // Ammo box / drum
+    if (isOdin) {
+      this._add(new THREE.BoxGeometry(0.080, 0.095, 0.130), d, 0.065,-0.05, 0.08);   // ammo box
+    } else {
+      this._add(new THREE.CylinderGeometry(0.065, 0.065, 0.072, 14), d, 0.062,-0.062, 0.08, Math.PI/2); // drum
+    }
     // Bipod
-    const bMat = new THREE.MeshLambertMaterial({ color: 0x333333 });
-    [-0.04, 0.04].forEach(x => {
-      this._add(new THREE.CylinderGeometry(0.006, 0.006, 0.2, 4), bMat, x, -0.1, -0.3, 0, 0, x > 0 ? -0.4 : 0.4);
+    const bMat = new THREE.MeshPhongMaterial({ color: 0x222222, shininess: 50 });
+    [-0.036, 0.036].forEach(x => {
+      this._add(new THREE.CylinderGeometry(0.005, 0.005, 0.20, 4), bMat, x,-0.10,-0.30, 0, 0, x > 0 ? -0.38 : 0.38);
     });
+    this._add(new THREE.BoxGeometry(0.028, 0.012, 0.20), d, 0, 0.058, 0.02);         // top rail
   }
 
   // ═══════════════════════════════════════════════════════
@@ -524,11 +651,14 @@ class FPSGame {
       this.targets.forEach(t => { if (t.alive) meshes.push(t.body, t.head); });
 
       const hits = raycaster.intersectObjects(meshes);
+      let targetHitDist = Infinity;
+
       if (hits.length > 0) {
         const hit    = hits[0];
         const isHead = hit.object.userData.hitbox === 'head';
         const tid    = hit.object.userData.targetId;
         const target = this.targets[tid];
+        targetHitDist = hit.distance;
 
         if (target?.alive) {
           const dmg = Math.round(wdef.damage * (isHead ? wdef.headshotMult : 1));
@@ -540,10 +670,18 @@ class FPSGame {
       } else {
         this._bulletTrace(this.camera.position.clone(), shotDir, 120);
       }
+
+      // Bullet hole on environment
+      const envHits = raycaster.intersectObjects(this.envMeshes);
+      if (envHits.length > 0 && envHits[0].distance < targetHitDist) {
+        const eh = envHits[0];
+        const worldNormal = eh.face.normal.clone().transformDirection(eh.object.matrixWorld);
+        this._createBulletHole(eh.point.clone(), worldNormal);
+      }
     }
 
-    // Recoil
-    this.player.pitch -= 0.008 + wdef.damage * 0.00012;
+    // Recoil — positive pitch = look up
+    this.player.pitch += 0.008 + wdef.damage * 0.00012;
     this.ui.expandCrosshair(7 + wdef.pellets * 2);
   }
 
@@ -554,6 +692,68 @@ class FPSGame {
     const line = new THREE.Line(geo, mat);
     this.scene.add(line);
     setTimeout(() => { this.scene.remove(line); geo.dispose(); mat.dispose(); }, 45);
+  }
+
+  _createBulletHole(position, normal) {
+    const geo = new THREE.PlaneGeometry(0.13, 0.13);
+    const mat = new THREE.MeshBasicMaterial({
+      map: this._bulletHoleTex,
+      transparent: true,
+      depthWrite: false,
+      polygonOffset: true,
+      polygonOffsetFactor: -1,
+      polygonOffsetUnits: -1,
+    });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.copy(position).addScaledVector(normal, 0.006);
+    mesh.lookAt(mesh.position.clone().add(normal));
+    mesh.rotateZ(Math.random() * Math.PI * 2);
+    this.scene.add(mesh);
+    this.bulletHoles.push(mesh);
+
+    if (this.bulletHoles.length > 120) {
+      const old = this.bulletHoles.shift();
+      this.scene.remove(old);
+      old.geometry.dispose();
+      old.material.dispose();
+    }
+  }
+
+  _createBulletHoleTexture() {
+    const size = 64;
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = size;
+    const ctx = canvas.getContext('2d');
+
+    // Dark outer ring with blast marks
+    const grad = ctx.createRadialGradient(32, 32, 6, 32, 32, 30);
+    grad.addColorStop(0,   'rgba(0,0,0,1)');
+    grad.addColorStop(0.4, 'rgba(15,10,5,0.95)');
+    grad.addColorStop(0.75,'rgba(30,20,10,0.7)');
+    grad.addColorStop(1,   'rgba(0,0,0,0)');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(32, 32, 30, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Center hole
+    ctx.fillStyle = 'rgba(0,0,0,1)';
+    ctx.beginPath();
+    ctx.arc(32, 32, 8, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Crack lines
+    ctx.strokeStyle = 'rgba(20,15,10,0.8)';
+    ctx.lineWidth = 1.5;
+    for (let i = 0; i < 7; i++) {
+      const a = (i / 7) * Math.PI * 2 + Math.random() * 0.3;
+      ctx.beginPath();
+      ctx.moveTo(32 + Math.cos(a) * 9,  32 + Math.sin(a) * 9);
+      ctx.lineTo(32 + Math.cos(a) * (20 + Math.random() * 8), 32 + Math.sin(a) * (20 + Math.random() * 8));
+      ctx.stroke();
+    }
+
+    return new THREE.CanvasTexture(canvas);
   }
 
   _muzzleFlash(wdef) {
