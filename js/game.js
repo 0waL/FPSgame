@@ -2,9 +2,9 @@ class FPSGame {
   constructor() {
     // ── Player ──────────────────────────────────────────
     this.player = {
-      health: 100,
+      health: 150,
+      maxHealth: 150,
       armor: 0,
-      money: 3000,
       pos: new THREE.Vector3(0, 1.65, 5),
       vel: new THREE.Vector3(),
       yaw: 0,
@@ -15,9 +15,9 @@ class FPSGame {
 
     // ── Weapons ─────────────────────────────────────────
     this.weapons = {
-      primary: null,
-      secondary: 'classic',
-      currentSlot: 'secondary',
+      primary: 'marshal',
+      secondary: null,
+      currentSlot: 'primary',
       ammoState: {},
       isReloading: false,
       lastShotTime: 0,
@@ -32,6 +32,13 @@ class FPSGame {
 
     // ── Weapon animation state ───────────────────────────
     this.weaponAnim = { raiseT: 0, kickT: 0, adsT: 0, reloadT: 0 };
+
+    // ── Slide state ──────────────────────────────────────
+    this.isSliding = false;
+    this.slideTimer = 0;
+    this.slideDir = new THREE.Vector3();
+    this.slideSpeed = 0;
+    this.slideCooldown = 0;
 
     // ── State ────────────────────────────────────────────
     this.state = 'lobby';
@@ -73,12 +80,12 @@ class FPSGame {
 
     this._bulletHoleTex = this._createBulletHoleTexture();
 
-    // Give default pistol ammo
-    this._initAmmo('classic');
-    this.weapons.currentSlot = 'secondary';
+    // Give starting sniper ammo
+    this._initAmmo('marshal');
+    this.weapons.currentSlot = 'primary';
 
     this.ui = new GameUI(this);
-    this._buildWeaponModel('classic');
+    this._buildWeaponModel('marshal');
     this.ui.updateHUD();
     this._loop();
   }
@@ -237,11 +244,14 @@ class FPSGame {
     head.castShadow = true;
     group.add(head);
 
+    const legs = [];
     [-0.2, 0.2].forEach(x => {
-      const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.11, 0.8, 6), legMat);
+      const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.11, 0.8, 6), legMat.clone());
       leg.position.set(x, 0.4, 0);
       leg.castShadow = true;
+      leg.userData = { targetId: id, hitbox: 'leg' };
       group.add(leg);
+      legs.push(leg);
     });
 
     const base = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.5, 0.1, 8), baseMat);
@@ -253,8 +263,8 @@ class FPSGame {
     body.userData = { targetId: id, hitbox: 'body' };
     head.userData = { targetId: id, hitbox: 'head' };
 
-    return { id, group, body, head,
-             bodyMat, headMat,
+    return { id, group, body, head, legs,
+             bodyMat, headMat, legMat: legs[0].material,
              health: 100, maxHealth: 100, alive: true,
              origPos: [...position], respawnTimer: null };
   }
@@ -506,10 +516,7 @@ class FPSGame {
 
     switch (e.code) {
       case 'KeyB':   this.openBuyMenu(); break;
-      case 'Digit1': this.switchSlot('secondary'); break;
-      case 'Digit2': if (this.weapons.primary) this.switchSlot('primary'); break;
       case 'KeyR':   this.startReload(); break;
-      case 'KeyG':   this._dropPrimary(); break;
       case 'Escape': if (this.isPointerLocked) document.exitPointerLock(); break;
     }
   }
@@ -533,17 +540,8 @@ class FPSGame {
     }
   }
 
-  _onWheel(e) {
-    if (this.state !== 'playing') return;
-    if (e.deltaY > 0) {
-      this.weapons.currentSlot === 'secondary' && this.weapons.primary
-        ? this.switchSlot('primary')
-        : this.switchSlot('secondary');
-    } else {
-      this.weapons.currentSlot === 'primary'
-        ? this.switchSlot('secondary')
-        : (this.weapons.primary && this.switchSlot('primary'));
-    }
+  _onWheel(_e) {
+    // single weapon type — no slot switching needed
   }
 
   // ═══════════════════════════════════════════════════════
@@ -563,10 +561,9 @@ class FPSGame {
   }
 
   equipWeapon(wid) {
-    const w = WEAPONS[wid];
     this._initAmmo(wid);
-    this.weapons[w.slot] = wid;
-    this.switchSlot(w.slot);
+    this.weapons.primary = wid;
+    this.switchSlot('primary');
   }
 
   switchSlot(slot) {
@@ -579,20 +576,9 @@ class FPSGame {
 
   buyWeapon(wid) {
     const w = WEAPONS[wid];
-    if (this.player.money < w.price) {
-      this.ui.showMessage('돈이 부족합니다!', 'error');
-      return;
-    }
-    this.player.money -= w.price;
     this.equipWeapon(wid);
     this.ui.showMessage(`${w.name} 장착!`, 'success');
     this.ui.updateHUD();
-  }
-
-  _dropPrimary() {
-    if (this.weapons.currentSlot !== 'primary') return;
-    this.weapons.primary = null;
-    this.switchSlot('secondary');
   }
 
   // ── Shooting ──────────────────────────────────────────
@@ -648,21 +634,25 @@ class FPSGame {
       raycaster.set(this.camera.position, shotDir);
 
       const meshes = [];
-      this.targets.forEach(t => { if (t.alive) meshes.push(t.body, t.head); });
+      this.targets.forEach(t => { if (t.alive) meshes.push(t.body, t.head, ...t.legs); });
 
       const hits = raycaster.intersectObjects(meshes);
       let targetHitDist = Infinity;
 
       if (hits.length > 0) {
         const hit    = hits[0];
-        const isHead = hit.object.userData.hitbox === 'head';
+        const hitbox = hit.object.userData.hitbox;
+        const isHead = hitbox === 'head';
         const tid    = hit.object.userData.targetId;
         const target = this.targets[tid];
         targetHitDist = hit.distance;
 
         if (target?.alive) {
-          const dmg = Math.round(wdef.damage * (isHead ? wdef.headshotMult : 1));
-          this._hitTarget(target, dmg, isHead);
+          let dmg;
+          if (hitbox === 'head') dmg = 300;
+          else if (hitbox === 'body') dmg = 150;
+          else dmg = 100; // legs
+          this._hitTarget(target, dmg, hitbox);
         }
 
         this._bulletTrace(this.camera.position.clone(), shotDir, hit.distance);
@@ -680,9 +670,7 @@ class FPSGame {
       }
     }
 
-    // Recoil — positive pitch = look up
-    this.player.pitch += 0.008 + wdef.damage * 0.00012;
-    this.ui.expandCrosshair(7 + wdef.pellets * 2);
+    this.ui.expandCrosshair(4);
   }
 
   _bulletTrace(origin, dir, dist) {
@@ -771,15 +759,23 @@ class FPSGame {
 
   // ── Target damage ────────────────────────────────────
 
-  _hitTarget(target, dmg, isHead) {
+  _hitTarget(target, dmg, hitbox) {
     target.health -= dmg;
+    const isHead = hitbox === 'head';
     this.ui.showDamageNumber(dmg, isHead);
 
-    const flashColor = isHead ? 0xFF2200 : 0xFF4400;
-    const origColor  = isHead ? 0xFFBB88 : 0xFF6600;
-    const mesh       = isHead ? target.head : target.body;
-    mesh.material.color.setHex(flashColor);
-    setTimeout(() => { if (target.alive) mesh.material.color.setHex(origColor); }, 90);
+    if (hitbox === 'head') {
+      target.head.material.color.setHex(0xFF2200);
+      setTimeout(() => { if (target.alive) target.head.material.color.setHex(0xFFBB88); }, 90);
+    } else if (hitbox === 'leg') {
+      target.legs.forEach(l => {
+        l.material.color.setHex(0xFF8800);
+        setTimeout(() => { if (target.alive) l.material.color.setHex(0x334455); }, 90);
+      });
+    } else {
+      target.body.material.color.setHex(0xFF4400);
+      setTimeout(() => { if (target.alive) target.body.material.color.setHex(0xFF6600); }, 90);
+    }
 
     if (target.health <= 0) this._killTarget(target, isHead);
   }
@@ -788,9 +784,7 @@ class FPSGame {
     target.alive = false;
     target.group.visible = false;
 
-    const reward = isHead ? 300 : 200;
-    this.player.money += reward;
-    this.score        += isHead ? 150 : 100;
+    this.score += isHead ? 150 : 100;
 
     this.ui.showKillFeed(isHead);
     this.ui.updateHUD();
@@ -802,6 +796,7 @@ class FPSGame {
       target.group.visible = true;
       target.bodyMat.color.setHex(0xFF6600);
       target.headMat.color.setHex(0xFFBB88);
+      target.legs.forEach(l => l.material.color.setHex(0x334455));
     }, 5000);
   }
 
@@ -904,43 +899,80 @@ class FPSGame {
   }
 
   _updateMovement(dt) {
-    const isCrouching = !!this.keys['ControlLeft'];
-    const isWalking   = !!this.keys['ShiftLeft'];
-    const speed = 5.2 * (isCrouching ? 0.45 : isWalking ? 0.55 : 1.0) * (this.weaponAnim.adsT > 0.1 ? 0.85 : 1.0);
-    const dir   = new THREE.Vector3();
+    // Cooldown tick
+    if (this.slideCooldown > 0) this.slideCooldown -= dt;
 
+    const isWalking = !!this.keys['ShiftLeft'];
+    const dir = new THREE.Vector3();
     if (this.keys['KeyW']) dir.z -= 1;
     if (this.keys['KeyS']) dir.z += 1;
     if (this.keys['KeyA']) dir.x -= 1;
     if (this.keys['KeyD']) dir.x += 1;
 
+    const wasMoving = this.player.isMoving;
     this.player.isMoving = dir.lengthSq() > 0;
 
-    if (this.player.isMoving) {
-      dir.normalize().applyAxisAngle(new THREE.Vector3(0, 1, 0), this.player.yaw);
-      const next = this.player.pos.clone().addScaledVector(dir, speed * dt);
+    // Start slide: moving + ControlLeft, not already sliding, no cooldown
+    if (this.keys['ControlLeft'] && wasMoving && !this.isSliding && this.slideCooldown <= 0 && this.player.onGround) {
+      this.isSliding  = true;
+      this.slideTimer = 0.85;
+      this.slideSpeed = 9.5;
+      // Lock slide direction to current facing
+      const slideInput = dir.clone().normalize().applyAxisAngle(new THREE.Vector3(0, 1, 0), this.player.yaw);
+      this.slideDir.copy(slideInput);
+    }
+
+    if (this.isSliding) {
+      this.slideTimer -= dt;
+      // Decelerate slower in air to preserve momentum
+      const decel = this.player.onGround ? 11 : 3;
+      this.slideSpeed = Math.max(0, this.slideSpeed - dt * decel);
+      const next = this.player.pos.clone().addScaledVector(this.slideDir, this.slideSpeed * dt);
       next.x = Math.max(-37, Math.min(37, next.x));
       next.z = Math.max(-37, Math.min(37, next.z));
-      this.player.pos.copy(next);
+      this.player.pos.x = next.x;
+      this.player.pos.z = next.z;
+
+      // Camera low only while on ground
+      if (this.player.onGround) {
+        this.player.pos.y += (0.75 - this.player.pos.y) * Math.min(1, dt * 12);
+      }
+
+      if (this.slideTimer <= 0 || this.slideSpeed <= 0.2) {
+        this.isSliding     = false;
+        this.slideCooldown = 0.7;
+      }
+    } else {
+      // Normal movement
+      const speed = 5.2 * (isWalking ? 0.55 : 1.0) * (this.weaponAnim.adsT > 0.1 ? 0.85 : 1.0);
+      if (this.player.isMoving) {
+        dir.normalize().applyAxisAngle(new THREE.Vector3(0, 1, 0), this.player.yaw);
+        const next = this.player.pos.clone().addScaledVector(dir, speed * dt);
+        next.x = Math.max(-37, Math.min(37, next.x));
+        next.z = Math.max(-37, Math.min(37, next.z));
+        this.player.pos.x = next.x;
+        this.player.pos.z = next.z;
+      }
+
+      // Stand height
+      const targetFloor = 1.65;
+      if (this.player.onGround) {
+        this.player.pos.y += (targetFloor - this.player.pos.y) * Math.min(1, dt * 10);
+      }
     }
 
-    // 크라우치 높이
-    const targetFloor = isCrouching ? 1.05 : 1.65;
-    if (this.player.onGround) {
-      this.player.pos.y += (targetFloor - this.player.pos.y) * Math.min(1, dt * 10);
-    }
-
-    // Jump (크라우치 중 점프 금지)
-    if (this.keys['Space'] && this.player.onGround && !isCrouching) {
-      this.player.vel.y = 5.5;
+    // Jump — allowed during sliding (preserves horizontal momentum)
+    if (this.keys['Space'] && this.player.onGround) {
+      this.player.vel.y    = 5.5;
       this.player.onGround = false;
     }
 
     if (!this.player.onGround) {
       this.player.vel.y -= 16 * dt;
       this.player.pos.y += this.player.vel.y * dt;
-      if (this.player.pos.y <= targetFloor) {
-        this.player.pos.y    = targetFloor;
+      const floorY = 1.65;
+      if (this.player.pos.y <= floorY) {
+        this.player.pos.y    = floorY;
         this.player.vel.y    = 0;
         this.player.onGround = true;
       }
