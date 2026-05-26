@@ -39,6 +39,10 @@ class FPSGame {
     this.slideDir = new THREE.Vector3();
     this.slideSpeed = 0;
     this.slideCooldown = 0;
+    this.camHeightOffset = 0; // visual-only slide crouch, never affects physics
+
+    // ── Mouse sensitivity ────────────────────────────────
+    this.mouseSens = 0.002;
 
     // ── State ────────────────────────────────────────────
     this.state = 'lobby';
@@ -523,9 +527,8 @@ class FPSGame {
 
   _onMouseMove(e) {
     if (!this.isPointerLocked || this.state !== 'playing') return;
-    const sens = 0.002;
-    this.player.yaw   -= e.movementX * sens;
-    this.player.pitch -= e.movementY * sens;
+    this.player.yaw   -= e.movementX * this.mouseSens;
+    this.player.pitch -= e.movementY * this.mouseSens;
     this.player.pitch  = Math.max(-Math.PI / 2 + 0.01, Math.min(Math.PI / 2 - 0.01, this.player.pitch));
   }
 
@@ -869,8 +872,13 @@ class FPSGame {
       if (w?.auto) this._tryShoot();
     }
 
+    // Slide camera crouch — purely visual, never affects physics pos.y
+    const slideOffsetTarget = (this.isSliding && this.player.onGround) ? -0.9 : 0;
+    this.camHeightOffset += (slideOffsetTarget - this.camHeightOffset) * Math.min(1, dt * 14);
+
     // Sync camera
     this.camera.position.copy(this.player.pos);
+    this.camera.position.y += this.camHeightOffset;
     this.camera.rotation.order = 'YXZ';
     this.camera.rotation.y = this.player.yaw;
     this.camera.rotation.x = this.player.pitch;
@@ -924,19 +932,12 @@ class FPSGame {
 
     if (this.isSliding) {
       this.slideTimer -= dt;
-      // Decelerate slower in air to preserve momentum
+      // Slower decel in air to preserve momentum
       const decel = this.player.onGround ? 11 : 3;
       this.slideSpeed = Math.max(0, this.slideSpeed - dt * decel);
-      const next = this.player.pos.clone().addScaledVector(this.slideDir, this.slideSpeed * dt);
-      next.x = Math.max(-37, Math.min(37, next.x));
-      next.z = Math.max(-37, Math.min(37, next.z));
-      this.player.pos.x = next.x;
-      this.player.pos.z = next.z;
-
-      // Camera low only while on ground
-      if (this.player.onGround) {
-        this.player.pos.y += (0.75 - this.player.pos.y) * Math.min(1, dt * 12);
-      }
+      // Horizontal movement only — pos.y is pure physics, never touched here
+      this.player.pos.x = Math.max(-37, Math.min(37, this.player.pos.x + this.slideDir.x * this.slideSpeed * dt));
+      this.player.pos.z = Math.max(-37, Math.min(37, this.player.pos.z + this.slideDir.z * this.slideSpeed * dt));
 
       if (this.slideTimer <= 0 || this.slideSpeed <= 0.2) {
         this.isSliding     = false;
@@ -947,25 +948,16 @@ class FPSGame {
       const speed = 5.2 * (isWalking ? 0.55 : 1.0) * (this.weaponAnim.adsT > 0.1 ? 0.85 : 1.0);
       if (this.player.isMoving) {
         dir.normalize().applyAxisAngle(new THREE.Vector3(0, 1, 0), this.player.yaw);
-        const next = this.player.pos.clone().addScaledVector(dir, speed * dt);
-        next.x = Math.max(-37, Math.min(37, next.x));
-        next.z = Math.max(-37, Math.min(37, next.z));
-        this.player.pos.x = next.x;
-        this.player.pos.z = next.z;
-      }
-
-      // Stand height
-      const targetFloor = 1.65;
-      if (this.player.onGround) {
-        this.player.pos.y += (targetFloor - this.player.pos.y) * Math.min(1, dt * 10);
+        this.player.pos.x = Math.max(-37, Math.min(37, this.player.pos.x + dir.x * speed * dt));
+        this.player.pos.z = Math.max(-37, Math.min(37, this.player.pos.z + dir.z * speed * dt));
       }
     }
 
-    // Jump — allowed during sliding (preserves horizontal momentum)
+    // pos.y is always physics-only: 1.65 on ground, higher during jump
+    if (this.player.onGround) this.player.pos.y = 1.65;
+
+    // Jump — works during slide (horizontal momentum preserved via isSliding)
     if (this.keys['Space'] && this.player.onGround) {
-      // Snap to stand height first so the landing check (pos.y <= 1.65) doesn't
-      // trigger immediately when jumping from the low slide camera position.
-      this.player.pos.y    = 1.65;
       this.player.vel.y    = 5.5;
       this.player.onGround = false;
     }

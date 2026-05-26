@@ -78,6 +78,20 @@ kbd {
   white-space: nowrap;
 }
 
+.sens-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 18px;
+  color: #aaa;
+  font-size: 0.88em;
+}
+.sens-row input[type=range] {
+  flex: 1;
+  accent-color: #FF3C3C;
+}
+.sens-row span { min-width: 28px; color: #fff; font-weight: 700; }
+
 #start-btn {
   background: linear-gradient(135deg, #FF3C3C, #CC2222);
   color: #fff;

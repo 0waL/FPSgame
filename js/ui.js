@@ -206,6 +206,14 @@ class GameUI {
   // ── START SCREEN ───────────────────────────────────────
 
   setupStartScreen() {
+    const slider  = document.getElementById('sens-slider');
+    const sensVal = document.getElementById('sens-val');
+    slider.addEventListener('input', () => {
+      const v = parseFloat(slider.value);
+      sensVal.textContent = v.toFixed(1);
+      this.game.mouseSens = 0.002 * v;
+    });
+
     document.getElementById('start-btn').addEventListener('click', () => {
       document.getElementById('start-screen').style.display = 'none';
       this.game.state = 'playing';
