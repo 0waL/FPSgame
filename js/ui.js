@@ -7,23 +7,19 @@ class GameUI {
     this.crosshairTimer = null;
     this.msgTimer = null;
     this.setupHUD();
-    this.setupBuyMenu();
     this.setupStartScreen();
     this.updateHUD();
   }
 
-  // ── HUD ────────────────────────────────────────────────
-
   setupHUD() {
     this.els = {
       health:      document.getElementById('health'),
-      armor:       document.getElementById('armor'),
       ammoCurrent: document.getElementById('ammo-current'),
       ammoReserve: document.getElementById('ammo-reserve'),
       weaponName:  document.getElementById('weapon-name'),
       slot1:       document.getElementById('slot-primary'),
-      slot2:       document.getElementById('slot-secondary'),
-      score:       document.getElementById('score'),
+      kills:       document.getElementById('kills'),
+      deaths:      document.getElementById('deaths'),
       reloadBar:   document.getElementById('reload-bar'),
       reloadFill:  document.getElementById('reload-fill'),
       killFeed:    document.getElementById('kill-feed'),
@@ -35,17 +31,15 @@ class GameUI {
   }
 
   updateHUD() {
-    const g = this.game;
-    const p = g.player;
-    const w = g.weapons;
+    const g    = this.game;
+    const p    = g.player;
+    const wid  = g.weapons.current;
+    const wdef = WEAPONS[wid];
+    const ammo = g.weapons.ammoState[wid];
 
-    this.els.health.textContent = p.health;
-    this.els.armor.textContent  = p.armor;
-    this.els.score.textContent  = g.score;
-
-    const wid  = w[w.currentSlot];
-    const wdef = wid ? WEAPONS[wid] : null;
-    const ammo = wid ? w.ammoState[wid] : null;
+    this.els.health.textContent  = Math.max(0, p.health);
+    this.els.kills.textContent   = p.kills;
+    this.els.deaths.textContent  = p.deaths;
 
     if (wdef && ammo) {
       this.els.weaponName.textContent  = wdef.name;
@@ -54,16 +48,12 @@ class GameUI {
       this.els.ammoCurrent.classList.toggle('low', ammo.magazine <= Math.floor(wdef.magazineSize * 0.25));
     }
 
-    // Slot display
-    const pri = w.primary ? WEAPONS[w.primary] : null;
-
-    this.els.slot1.innerHTML = pri
-      ? `<span class="sname">${pri.name}</span><span class="sammo">${w.ammoState[w.primary]?.magazine ?? 0}</span>`
-      : `<span class="sempty">— 무기 없음</span>`;
-    this.els.slot2.innerHTML = '';
-
-    this.els.slot1.classList.toggle('active', w.currentSlot === 'primary');
-    this.els.slot2.classList.remove('active');
+    if (this.els.slot1) {
+      this.els.slot1.innerHTML = wdef
+        ? `<span class="sname">${wdef.name}</span><span class="sammo">${ammo?.magazine ?? 0}</span>`
+        : '';
+      this.els.slot1.classList.add('active');
+    }
   }
 
   // ── CROSSHAIR ──────────────────────────────────────────
@@ -110,6 +100,16 @@ class GameUI {
     setTimeout(() => el.remove(), 900);
   }
 
+  // ── DAMAGE FLASH (player takes damage) ─────────────────
+
+  showDamageFlash() {
+    const el = document.getElementById('damage-flash');
+    if (!el) return;
+    el.classList.remove('active');
+    void el.offsetWidth;
+    el.classList.add('active');
+  }
+
   // ── RELOAD BAR ─────────────────────────────────────────
 
   showReloadBar(duration) {
@@ -127,10 +127,12 @@ class GameUI {
 
   // ── KILL FEED ──────────────────────────────────────────
 
-  showKillFeed(isHeadshot) {
+  showKillFeed(isHeadshot, name) {
     const el = document.createElement('div');
     el.className = 'kill-item';
-    el.innerHTML = isHeadshot ? '☠️ <b>HEADSHOT</b>' : '💀 Kill';
+    el.innerHTML = isHeadshot
+      ? `☠️ <b>HEADSHOT</b> — ${name}`
+      : `💀 Killed ${name}`;
     this.els.killFeed.prepend(el);
     setTimeout(() => el.remove(), 3500);
   }
@@ -145,67 +147,59 @@ class GameUI {
     this.msgTimer = setTimeout(() => { el.className = ''; }, 2200);
   }
 
-  // ── ARSENAL MENU ───────────────────────────────────────
+  // ── DEATH OVERLAY ──────────────────────────────────────
 
-  setupBuyMenu() {
-    const grid = document.getElementById('buy-grid');
-    this._buildBuyGrid(grid);
-    document.getElementById('buy-close').addEventListener('click', () => this.game.closeBuyMenu());
+  showDeathOverlay(killerName) {
+    const el = document.getElementById('death-overlay');
+    if (!el) return;
+    const killerEl   = document.getElementById('death-killer');
+    const countEl    = document.getElementById('death-countdown');
+    if (killerEl) killerEl.textContent = `Killed by ${killerName}`;
+    el.classList.add('visible');
+    let count = 3;
+    if (countEl) {
+      countEl.textContent = `Respawning in ${count}...`;
+      const iv = setInterval(() => {
+        count--;
+        if (count <= 0) { clearInterval(iv); countEl.textContent = ''; }
+        else countEl.textContent = `Respawning in ${count}...`;
+      }, 1000);
+    }
   }
 
-  _buildBuyGrid(grid) {
-    grid.innerHTML = '';
-    WEAPON_CATEGORIES.forEach(cat => {
-      const col = document.createElement('div');
-      col.className = 'buy-col';
-
-      const hdr = document.createElement('div');
-      hdr.className = 'buy-col-hdr';
-      hdr.textContent = cat.name;
-      col.appendChild(hdr);
-
-      cat.weapons.forEach(wid => {
-        const w = WEAPONS[wid];
-        const isEquipped = this.game.weapons.primary === wid;
-
-        const card = document.createElement('div');
-        card.className = 'wcard' + (isEquipped ? ' equipped' : '');
-
-        card.innerHTML = `
-          <div class="wsil type-${w.type}"></div>
-          <div class="wcard-body">
-            <span class="wcard-name">${w.name}</span>
-            <span class="wcard-desc">${w.description}</span>
-          </div>
-          ${isEquipped ? '<div class="wcard-owned">✓</div>' : ''}
-        `;
-
-        if (!isEquipped) {
-          card.addEventListener('click', () => {
-            this.game.buyWeapon(wid);
-            this._buildBuyGrid(grid);
-          });
-        }
-
-        col.appendChild(card);
-      });
-
-      grid.appendChild(col);
-    });
-  }
-
-  showBuyMenu() {
-    document.getElementById('buy-menu').classList.add('visible');
-    this._buildBuyGrid(document.getElementById('buy-grid'));
-  }
-
-  hideBuyMenu() {
-    document.getElementById('buy-menu').classList.remove('visible');
+  hideDeathOverlay() {
+    const el = document.getElementById('death-overlay');
+    if (el) el.classList.remove('visible');
   }
 
   // ── START SCREEN ───────────────────────────────────────
 
   setupStartScreen() {
+    // Sensitivity slider
+    const slider  = document.getElementById('sens-slider');
+    const sensVal = document.getElementById('sens-val');
+    if (slider) {
+      slider.addEventListener('input', () => {
+        const v = parseFloat(slider.value);
+        if (sensVal) sensVal.textContent = v.toFixed(1);
+        this.game.mouseSens = 0.002 * v;
+      });
+    }
+
+    // Weapon choice buttons
+    document.querySelectorAll('.weapon-choice').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.weapon-choice').forEach(b => b.classList.remove('selected'));
+        btn.classList.add('selected');
+        const wid = btn.dataset.weapon;
+        this.game.weapons.current = wid;
+        this.game._initAmmo(wid);
+        this.game._buildWeaponModel(wid);
+        this.game.weaponAnim.raiseT = 0;
+        this.updateHUD();
+      });
+    });
+
     document.getElementById('start-btn').addEventListener('click', () => {
       document.getElementById('start-screen').style.display = 'none';
       this.game.state = 'playing';

@@ -78,6 +78,20 @@ kbd {
   white-space: nowrap;
 }
 
+.sens-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 18px;
+  color: #aaa;
+  font-size: 0.88em;
+}
+.sens-row input[type=range] {
+  flex: 1;
+  accent-color: #FF3C3C;
+}
+.sens-row span { min-width: 28px; color: #fff; font-weight: 700; }
+
 #start-btn {
   background: linear-gradient(135deg, #FF3C3C, #CC2222);
   color: #fff;
@@ -110,19 +124,12 @@ kbd {
   left: 50%;
   transform: translateX(-50%);
   display: flex;
-  gap: 24px;
   align-items: center;
-  background: rgba(0,0,0,0.55);
-  padding: 8px 28px;
-  border-radius: 30px;
-  border: 1px solid rgba(255,255,255,0.08);
 }
 
 .hud-block { text-align: center; }
 .hud-block .lbl { display: block; font-size: 0.6em; color: #666; letter-spacing: 2px; }
 .hud-block .val { display: block; font-size: 1.15em; color: #fff; font-weight: 700; }
-
-#money-display { font-size: 1.25em; font-weight: 700; color: #FFD700; }
 
 /* Bottom left */
 #hud-bl {
@@ -207,16 +214,88 @@ kbd {
 #ammo-sep { color: #555; font-size: 1em; }
 #ammo-reserve { color: #888; font-size: 1em; }
 
-/* Bottom center */
-#buy-hint {
-  position: absolute;
-  bottom: 26px;
-  left: 50%;
-  transform: translateX(-50%);
-  color: rgba(255,255,255,0.32);
-  font-size: 0.72em;
-  letter-spacing: 2px;
+/* ── K/D DISPLAY ─────────────────────────────────────── */
+.kd-display {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(0,0,0,0.45);
+  border-radius: 8px;
+  padding: 6px 14px;
 }
+.kd-block { display: flex; flex-direction: column; align-items: center; }
+.kd-lbl   { font-size: 0.6em; color: #888; letter-spacing: 2px; }
+.kd-val   { font-size: 1.3em; font-weight: 800; color: #fff; }
+.kd-sep   { color: #555; font-size: 1.2em; font-weight: 300; }
+
+/* ── WEAPON SELECT (start screen) ───────────────────── */
+.weapon-select {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+.weapon-choice {
+  flex: 1;
+  background: rgba(255,255,255,0.06);
+  border: 2px solid rgba(255,255,255,0.15);
+  border-radius: 10px;
+  padding: 12px;
+  cursor: pointer;
+  color: #ccc;
+  font-family: inherit;
+  transition: border-color 0.15s, background 0.15s;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+.weapon-choice:hover { border-color: rgba(255,255,255,0.35); }
+.weapon-choice.selected { border-color: #FF3C3C; background: rgba(255,60,60,0.12); color: #fff; }
+.wc-name { font-size: 1.05em; font-weight: 700; letter-spacing: 1px; }
+.wc-stat { font-size: 0.72em; color: #888; }
+.weapon-choice.selected .wc-stat { color: #FF9999; }
+
+/* ── DAMAGE FLASH ────────────────────────────────────── */
+#damage-flash {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(ellipse at center, transparent 35%, rgba(200,0,0,0.75) 100%);
+  opacity: 0;
+  z-index: 50;
+}
+#damage-flash.active {
+  animation: dmg-pulse 0.45s ease-out forwards;
+}
+@keyframes dmg-pulse {
+  0%   { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+/* ── DEATH OVERLAY ───────────────────────────────────── */
+#death-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.82);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s;
+}
+#death-overlay.visible { opacity: 1; pointer-events: all; }
+#death-msg {
+  font-size: 3.2em;
+  font-weight: 900;
+  color: #FF3333;
+  letter-spacing: 10px;
+  text-shadow: 0 0 40px rgba(255,0,0,0.7);
+}
+#death-killer   { color: #aaa; font-size: 1.1em; margin-top: 12px; }
+#death-countdown{ color: #555; font-size: 0.95em; margin-top: 18px; }
 
 /* ── CROSSHAIR ────────────────────────────────────────── */
 #crosshair {
