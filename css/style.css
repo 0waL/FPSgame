@@ -553,13 +553,11 @@ kbd {
 
 .wcard-body {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
+  flex-direction: column;
+  gap: 2px;
 }
-.wcard-name  { color: #ddd; font-size: 0.82em; font-weight: 600; }
-.wcard-price { font-size: 0.78em; font-weight: 700; }
-.wcard-price.yes { color: #FFD700; }
-.wcard-price.no  { color: #555; }
+.wcard-name { color: #ddd; font-size: 0.82em; font-weight: 600; }
+.wcard-desc { color: #888; font-size: 0.72em; }
 
 .wcard-owned {
   position: absolute;

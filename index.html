@@ -19,7 +19,7 @@
       <div class="ctrl-row"><kbd>우클릭</kbd> 스코프 조준</div>
       <div class="ctrl-row"><kbd>좌클릭</kbd> 사격</div>
       <div class="ctrl-row"><kbd>R</kbd> 재장전</div>
-      <div class="ctrl-row"><kbd>B</kbd> 저격총 구매</div>
+      <div class="ctrl-row"><kbd>B</kbd> 무기고</div>
       <div class="ctrl-row"><kbd>L-Shift</kbd> 걷기</div>
       <div class="ctrl-row"><kbd>L-Ctrl</kbd> 슬라이딩</div>
       <div class="ctrl-row"><kbd>Space</kbd> 점프</div>
@@ -38,13 +38,12 @@
 <!-- ── HUD ──────────────────────────────────────────────── -->
 <div id="hud">
 
-  <!-- Top bar: score / round / money -->
+  <!-- Top bar: score -->
   <div id="hud-top">
     <div class="hud-block">
       <span class="lbl">SCORE</span>
       <span class="val" id="score">0</span>
     </div>
-    <div id="money">$3000</div>
   </div>
 
   <!-- Bottom left: health & armor -->
@@ -103,18 +102,14 @@
   <div id="message"></div>
 
   <!-- Buy hint -->
-  <div id="buy-hint">[ B ] 저격총 구매</div>
+  <div id="buy-hint">[ B ] 무기고</div>
 </div>
 
 <!-- ── BUY MENU ──────────────────────────────────────────── -->
 <div id="buy-menu">
   <div id="buy-inner">
     <div id="buy-header">
-      <h2>🔭 저격총 선택</h2>
-      <div id="buy-money-area">
-        <span id="buy-money-lbl">보유 금액</span>
-        <span id="buy-money-val">$3000</span>
-      </div>
+      <h2>🔫 무기고</h2>
       <button id="buy-close">✕ 닫기 [ESC]</button>
     </div>
     <div id="buy-grid"></div>

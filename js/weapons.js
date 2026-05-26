@@ -2,7 +2,7 @@ const WEAPONS = {
   // ── SNIPERS ──────────────────────────────────────────
   marshal: {
     id: 'marshal', name: 'Kar98k', type: 'sniper', slot: 'primary',
-    price: 950, damage: 150, fireRate: 1100,
+    price: 0, damage: 150, fireRate: 1000,
     magazineSize: 5, reserveAmmo: 20, reloadTime: 3000,
     spread: 0.005, movementSpread: 0.03, adsSpread: 0.00075, pellets: 1, auto: false,
     color: 0x886622, barrelTipZ: -0.85,
@@ -10,7 +10,7 @@ const WEAPONS = {
   },
   operator: {
     id: 'operator', name: 'AWP', type: 'sniper', slot: 'primary',
-    price: 4700, damage: 150, fireRate: 1500,
+    price: 0, damage: 150, fireRate: 1000,
     magazineSize: 5, reserveAmmo: 20, reloadTime: 3700,
     spread: 0.003, movementSpread: 0.02, adsSpread: 0.00045, pellets: 1, auto: false,
     color: 0x224466, barrelTipZ: -0.98,

@@ -5,7 +5,6 @@ class FPSGame {
       health: 150,
       maxHealth: 150,
       armor: 0,
-      money: 3000,
       pos: new THREE.Vector3(0, 1.65, 5),
       vel: new THREE.Vector3(),
       yaw: 0,
@@ -577,11 +576,6 @@ class FPSGame {
 
   buyWeapon(wid) {
     const w = WEAPONS[wid];
-    if (this.player.money < w.price) {
-      this.ui.showMessage('돈이 부족합니다!', 'error');
-      return;
-    }
-    this.player.money -= w.price;
     this.equipWeapon(wid);
     this.ui.showMessage(`${w.name} 장착!`, 'success');
     this.ui.updateHUD();
@@ -790,9 +784,7 @@ class FPSGame {
     target.alive = false;
     target.group.visible = false;
 
-    const reward = isHead ? 300 : 200;
-    this.player.money += reward;
-    this.score        += isHead ? 150 : 100;
+    this.score += isHead ? 150 : 100;
 
     this.ui.showKillFeed(isHead);
     this.ui.updateHUD();
@@ -932,20 +924,22 @@ class FPSGame {
 
     if (this.isSliding) {
       this.slideTimer -= dt;
-      this.slideSpeed  = Math.max(0, this.slideSpeed - dt * 11);
+      // Decelerate slower in air to preserve momentum
+      const decel = this.player.onGround ? 11 : 3;
+      this.slideSpeed = Math.max(0, this.slideSpeed - dt * decel);
       const next = this.player.pos.clone().addScaledVector(this.slideDir, this.slideSpeed * dt);
       next.x = Math.max(-37, Math.min(37, next.x));
       next.z = Math.max(-37, Math.min(37, next.z));
       this.player.pos.x = next.x;
       this.player.pos.z = next.z;
 
-      // Camera low during slide
+      // Camera low only while on ground
       if (this.player.onGround) {
         this.player.pos.y += (0.75 - this.player.pos.y) * Math.min(1, dt * 12);
       }
 
       if (this.slideTimer <= 0 || this.slideSpeed <= 0.2) {
-        this.isSliding    = false;
+        this.isSliding     = false;
         this.slideCooldown = 0.7;
       }
     } else {
@@ -967,11 +961,10 @@ class FPSGame {
       }
     }
 
-    // Jump (not while sliding)
-    if (this.keys['Space'] && this.player.onGround && !this.isSliding) {
-      this.player.vel.y = 5.5;
+    // Jump — allowed during sliding (preserves horizontal momentum)
+    if (this.keys['Space'] && this.player.onGround) {
+      this.player.vel.y    = 5.5;
       this.player.onGround = false;
-      if (this.isSliding) { this.isSliding = false; this.slideCooldown = 0.3; }
     }
 
     if (!this.player.onGround) {

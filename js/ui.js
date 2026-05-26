@@ -18,7 +18,6 @@ class GameUI {
     this.els = {
       health:      document.getElementById('health'),
       armor:       document.getElementById('armor'),
-      money:       document.getElementById('money'),
       ammoCurrent: document.getElementById('ammo-current'),
       ammoReserve: document.getElementById('ammo-reserve'),
       weaponName:  document.getElementById('weapon-name'),
@@ -42,7 +41,6 @@ class GameUI {
 
     this.els.health.textContent = p.health;
     this.els.armor.textContent  = p.armor;
-    this.els.money.textContent  = '$' + p.money;
     this.els.score.textContent  = g.score;
 
     const wid  = w[w.currentSlot];
@@ -57,18 +55,15 @@ class GameUI {
     }
 
     // Slot display
-    const pri = w.primary   ? WEAPONS[w.primary]   : null;
-    const sec = w.secondary ? WEAPONS[w.secondary] : null;
+    const pri = w.primary ? WEAPONS[w.primary] : null;
 
     this.els.slot1.innerHTML = pri
       ? `<span class="sname">${pri.name}</span><span class="sammo">${w.ammoState[w.primary]?.magazine ?? 0}</span>`
-      : `<span class="sempty">— 주무기 없음</span>`;
-    this.els.slot2.innerHTML = sec
-      ? `<span class="sname">${sec.name}</span><span class="sammo">${w.ammoState[w.secondary]?.magazine ?? 0}</span>`
-      : '';
+      : `<span class="sempty">— 무기 없음</span>`;
+    this.els.slot2.innerHTML = '';
 
     this.els.slot1.classList.toggle('active', w.currentSlot === 'primary');
-    this.els.slot2.classList.toggle('active', w.currentSlot === 'secondary');
+    this.els.slot2.classList.remove('active');
   }
 
   // ── CROSSHAIR ──────────────────────────────────────────
@@ -135,9 +130,7 @@ class GameUI {
   showKillFeed(isHeadshot) {
     const el = document.createElement('div');
     el.className = 'kill-item';
-    el.innerHTML = isHeadshot
-      ? '☠️ <b>HEADSHOT</b> +$300'
-      : '💀 Kill +$200';
+    el.innerHTML = isHeadshot ? '☠️ <b>HEADSHOT</b>' : '💀 Kill';
     this.els.killFeed.prepend(el);
     setTimeout(() => el.remove(), 3500);
   }
@@ -152,7 +145,7 @@ class GameUI {
     this.msgTimer = setTimeout(() => { el.className = ''; }, 2200);
   }
 
-  // ── BUY MENU ───────────────────────────────────────────
+  // ── ARSENAL MENU ───────────────────────────────────────
 
   setupBuyMenu() {
     const grid = document.getElementById('buy-grid');
@@ -173,26 +166,24 @@ class GameUI {
 
       cat.weapons.forEach(wid => {
         const w = WEAPONS[wid];
-        const canAfford  = this.game.player.money >= w.price;
-        const isEquipped = this.game.weapons.primary === wid || this.game.weapons.secondary === wid;
+        const isEquipped = this.game.weapons.primary === wid;
 
         const card = document.createElement('div');
-        card.className = 'wcard' + (isEquipped ? ' equipped' : '') + (!canAfford && !isEquipped ? ' cant-afford' : '');
+        card.className = 'wcard' + (isEquipped ? ' equipped' : '');
 
         card.innerHTML = `
           <div class="wsil type-${w.type}"></div>
           <div class="wcard-body">
             <span class="wcard-name">${w.name}</span>
-            <span class="wcard-price ${canAfford || isEquipped ? 'yes' : 'no'}">${w.price === 0 ? 'FREE' : '$' + w.price.toLocaleString()}</span>
+            <span class="wcard-desc">${w.description}</span>
           </div>
           ${isEquipped ? '<div class="wcard-owned">✓</div>' : ''}
         `;
 
-        if (!isEquipped && canAfford) {
+        if (!isEquipped) {
           card.addEventListener('click', () => {
             this.game.buyWeapon(wid);
             this._buildBuyGrid(grid);
-            document.getElementById('buy-money-val').textContent = '$' + this.game.player.money.toLocaleString();
           });
         }
 
@@ -205,7 +196,6 @@ class GameUI {
 
   showBuyMenu() {
     document.getElementById('buy-menu').classList.add('visible');
-    document.getElementById('buy-money-val').textContent = '$' + this.game.player.money.toLocaleString();
     this._buildBuyGrid(document.getElementById('buy-grid'));
   }
 
