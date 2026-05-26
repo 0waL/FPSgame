@@ -200,10 +200,54 @@ class GameUI {
       });
     });
 
+    // Solo play
     document.getElementById('start-btn').addEventListener('click', () => {
       document.getElementById('start-screen').style.display = 'none';
       this.game.state = 'playing';
       document.body.requestPointerLock();
     });
+
+    // Multiplayer panel toggle
+    const multiBtn   = document.getElementById('multi-btn');
+    const multiPanel = document.getElementById('multi-panel');
+    if (multiBtn && multiPanel) {
+      multiBtn.addEventListener('click', () => {
+        multiPanel.classList.toggle('open');
+      });
+    }
+
+    // Connect to server
+    const connectBtn    = document.getElementById('connect-btn');
+    const serverUrlEl   = document.getElementById('server-url');
+    const connectStatus = document.getElementById('connect-status');
+    if (connectBtn) {
+      connectBtn.addEventListener('click', () => {
+        if (!window.io) { connectStatus.textContent = '❌ Socket.io 로드 실패 (인터넷 연결 확인)'; return; }
+        let url = (serverUrlEl?.value || '').trim();
+        if (!url) { connectStatus.textContent = '❌ IP를 입력하세요'; return; }
+        if (!url.startsWith('http')) url = 'http://' + url;
+        connectStatus.textContent = '⏳ 연결 중...';
+        connectBtn.disabled = true;
+
+        this.game.connectMultiplayer(url);
+
+        const sock = this.game.network?.socket;
+        if (sock) {
+          sock.on('connect', () => {
+            connectStatus.textContent = '✅ 연결 성공!';
+            setTimeout(() => {
+              document.getElementById('start-screen').style.display = 'none';
+              this.game.state = 'playing';
+              document.body.requestPointerLock();
+            }, 600);
+          });
+          sock.on('connect_error', () => {
+            connectStatus.textContent = '❌ 연결 실패 — IP와 포트를 확인하세요';
+            connectBtn.disabled = false;
+          });
+        }
+      });
+    }
   }
 }
+

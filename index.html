@@ -14,6 +14,7 @@
     <h1>SNIPER ARENA</h1>
     <p class="subtitle">헤드 300 / 몸 150 / 다리 100</p>
 
+    <!-- Weapon select -->
     <div class="weapon-select">
       <button class="weapon-choice selected" data-weapon="marshal">
         <span class="wc-name">Kar98k</span>
@@ -25,6 +26,23 @@
       </button>
     </div>
 
+    <!-- Mode -->
+    <div class="mode-row">
+      <button id="start-btn" class="btn-primary">▶ 혼자하기 (봇)</button>
+      <button id="multi-btn" class="btn-secondary">🌐 멀티플레이</button>
+    </div>
+
+    <!-- LAN connect (hidden until multi-btn clicked) -->
+    <div id="multi-panel">
+      <p class="mp-hint">서버 컴퓨터에서 <code>npm start</code> 실행 후 표시된 IP 입력</p>
+      <div class="mp-input-row">
+        <input id="server-url" type="text" placeholder="192.168.x.x:3000" spellcheck="false">
+        <button id="connect-btn">연결</button>
+      </div>
+      <div id="connect-status"></div>
+    </div>
+
+    <!-- Controls -->
     <div class="controls-grid">
       <div class="ctrl-row"><kbd>W A S D</kbd> 이동</div>
       <div class="ctrl-row"><kbd>우클릭</kbd> 스코프</div>
@@ -36,26 +54,22 @@
       <div class="ctrl-row"><kbd>1 / 2</kbd> 무기 전환</div>
     </div>
 
+    <!-- Sensitivity -->
     <div class="sens-row">
-      <label>마우스 감도</label>
+      <label>감도</label>
       <input type="range" id="sens-slider" min="0.2" max="5" step="0.1" value="1">
       <span id="sens-val">1.0</span>
     </div>
-
-    <button id="start-btn">▶ 게임 시작</button>
   </div>
 </div>
 
 <!-- ── GAME CANVAS ───────────────────────────────────────── -->
 <div id="game-canvas"></div>
 
-<!-- ── SCOPE OVERLAY ─────────────────────────────────────── -->
+<!-- ── SCOPE / DAMAGE / DEATH ────────────────────────────── -->
 <div id="scope-overlay"></div>
-
-<!-- ── DAMAGE FLASH ──────────────────────────────────────── -->
 <div id="damage-flash"></div>
 
-<!-- ── DEATH OVERLAY ─────────────────────────────────────── -->
 <div id="death-overlay">
   <div id="death-msg">ELIMINATED</div>
   <div id="death-killer"></div>
@@ -64,8 +78,6 @@
 
 <!-- ── HUD ──────────────────────────────────────────────── -->
 <div id="hud">
-
-  <!-- Top: K/D -->
   <div id="hud-top">
     <div class="kd-display">
       <div class="kd-block"><span class="kd-lbl">KILLS</span><span class="kd-val" id="kills">0</span></div>
@@ -74,7 +86,6 @@
     </div>
   </div>
 
-  <!-- Bottom left: health -->
   <div id="hud-bl">
     <div class="stat-pill">
       <span class="ico">❤️</span>
@@ -82,10 +93,9 @@
     </div>
   </div>
 
-  <!-- Bottom right: weapon + ammo -->
   <div id="hud-br">
     <div id="weapon-slots">
-      <div class="wslot active" id="slot-primary"><span class="sname">Kar98k</span><span class="sammo">5</span></div>
+      <div class="wslot active" id="slot-primary"></div>
     </div>
     <div id="ammo-box">
       <span id="weapon-name">Kar98k</span>
@@ -97,38 +107,44 @@
     </div>
   </div>
 
-  <!-- Crosshair -->
   <div id="crosshair">
-    <div class="ch ch-t"></div>
-    <div class="ch ch-b"></div>
-    <div class="ch ch-l"></div>
-    <div class="ch ch-r"></div>
+    <div class="ch ch-t"></div><div class="ch ch-b"></div>
+    <div class="ch ch-l"></div><div class="ch ch-r"></div>
     <div class="ch ch-dot"></div>
   </div>
-
-  <!-- Hit marker -->
   <div id="hit-marker"></div>
 
-  <!-- Reload bar -->
   <div id="reload-bar">
     <div id="reload-lbl">RELOADING</div>
     <div id="reload-track"><div id="reload-fill"></div></div>
   </div>
 
-  <!-- Kill feed -->
   <div id="kill-feed"></div>
-
-  <!-- Damage numbers -->
   <div id="damage-numbers"></div>
-
-  <!-- Message toast -->
   <div id="message"></div>
-
 </div>
 
 <!-- ── Scripts ───────────────────────────────────────────── -->
+<!-- Three.js core -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+<!-- Post-processing -->
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
+
+<!-- Procedural Sky -->
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/objects/Sky.js"></script>
+
+<!-- Socket.io (for LAN multiplayer — works even when not connected) -->
+<script src="https://cdn.socket.io/4.7.2/socket.io.min.js" onerror="window.io=undefined"></script>
+
+<!-- Game -->
 <script src="js/weapons.js"></script>
+<script src="js/network.js"></script>
 <script src="js/ui.js"></script>
 <script src="js/game.js"></script>
 <script>

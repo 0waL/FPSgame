@@ -1,12 +1,14 @@
 {
-  "name": "fps-game",
+  "name": "sniper-arena",
   "version": "1.0.0",
-  "description": "Three.js FPS game with Valorant-style weapon selection",
+  "description": "Browser FPS — Sniper Arena (LAN multiplayer)",
+  "main": "server.js",
   "scripts": {
-    "start": "serve .",
-    "dev": "serve . --listen 3000"
+    "start": "node server.js",
+    "solo":  "npx serve ."
   },
-  "devDependencies": {
-    "serve": "^14.2.4"
+  "dependencies": {
+    "express": "^4.18.2",
+    "socket.io": "^4.7.2"
   }
 }
