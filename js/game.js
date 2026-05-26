@@ -963,6 +963,9 @@ class FPSGame {
 
     // Jump — allowed during sliding (preserves horizontal momentum)
     if (this.keys['Space'] && this.player.onGround) {
+      // Snap to stand height first so the landing check (pos.y <= 1.65) doesn't
+      // trigger immediately when jumping from the low slide camera position.
+      this.player.pos.y    = 1.65;
       this.player.vel.y    = 5.5;
       this.player.onGround = false;
     }
@@ -970,9 +973,8 @@ class FPSGame {
     if (!this.player.onGround) {
       this.player.vel.y -= 16 * dt;
       this.player.pos.y += this.player.vel.y * dt;
-      const floorY = 1.65;
-      if (this.player.pos.y <= floorY) {
-        this.player.pos.y    = floorY;
+      if (this.player.pos.y <= 1.65) {
+        this.player.pos.y    = 1.65;
         this.player.vel.y    = 0;
         this.player.onGround = true;
       }
