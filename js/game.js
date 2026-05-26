@@ -81,7 +81,7 @@ class FPSGame {
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.1;
+    this.renderer.toneMappingExposure = 0.6;
     this.renderer.outputEncoding = THREE.sRGBEncoding;
     this.renderer.autoClear = false;
     document.getElementById('game-canvas').appendChild(this.renderer.domElement);
@@ -122,12 +122,12 @@ class FPSGame {
       sky.scale.setScalar(450000);
       this.scene.add(sky);
       const sun = new THREE.Vector3();
-      sun.setFromSphericalCoords(1, THREE.MathUtils.degToRad(87), THREE.MathUtils.degToRad(180));
+      sun.setFromSphericalCoords(1, THREE.MathUtils.degToRad(78), THREE.MathUtils.degToRad(180));
       sky.material.uniforms['sunPosition'].value.copy(sun);
-      sky.material.uniforms['turbidity'].value      = 8;
-      sky.material.uniforms['rayleigh'].value        = 1.5;
-      sky.material.uniforms['mieCoefficient'].value  = 0.005;
-      sky.material.uniforms['mieDirectionalG'].value = 0.82;
+      sky.material.uniforms['turbidity'].value      = 14;
+      sky.material.uniforms['rayleigh'].value        = 0.7;
+      sky.material.uniforms['mieCoefficient'].value  = 0.004;
+      sky.material.uniforms['mieDirectionalG'].value = 0.75;
       this._skyEnabled = true;
     } else {
       this.scene.background = new THREE.Color(0x7EC8E3);
@@ -153,9 +153,9 @@ class FPSGame {
   }
 
   _setupLighting() {
-    this.scene.add(new THREE.AmbientLight(0xfff8e8, 0.55));
+    this.scene.add(new THREE.AmbientLight(0xdde8ff, 0.25));
 
-    const sun = new THREE.DirectionalLight(0xfff5dd, 1.1);
+    const sun = new THREE.DirectionalLight(0xfff0cc, 0.75);
     sun.position.set(40, 60, 30);
     sun.castShadow = true;
     sun.shadow.mapSize.set(4096, 4096);
@@ -166,7 +166,7 @@ class FPSGame {
     this.scene.add(sun);
     this._sunLight = sun;
 
-    const fill = new THREE.DirectionalLight(0x99bbff, 0.3);
+    const fill = new THREE.DirectionalLight(0x6688cc, 0.18);
     fill.position.set(-20, 10, -20);
     this.scene.add(fill);
 
