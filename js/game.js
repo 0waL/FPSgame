@@ -198,20 +198,20 @@ class FPSGame {
     const headMat = new THREE.MeshLambertMaterial({ color: 0xFFAAA0 });
     const baseMat = new THREE.MeshLambertMaterial({ color: 0x333333 });
 
-    const body = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 1.2, 8), bodyMat);
+    const body = new THREE.Mesh(new THREE.CylinderGeometry(0.38, 0.38, 1.2, 8), bodyMat);
     body.position.y = 0.9; body.castShadow = true;
     body.userData = { botId: id, hitbox: 'body' };
     group.add(body);
 
-    const head = new THREE.Mesh(new THREE.SphereGeometry(0.26, 10, 8), headMat);
-    head.position.y = 1.75; head.castShadow = true;
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.35, 10, 8), headMat);
+    head.position.y = 1.78; head.castShadow = true;
     head.userData = { botId: id, hitbox: 'head' };
     group.add(head);
 
     const legs = [];
-    [-0.2, 0.2].forEach(x => {
+    [-0.22, 0.22].forEach(x => {
       const legMat = new THREE.MeshLambertMaterial({ color: 0x221133 });
-      const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.11, 0.8, 6), legMat);
+      const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 0.8, 6), legMat);
       leg.position.set(x, 0.4, 0); leg.castShadow = true;
       leg.userData = { botId: id, hitbox: 'leg' };
       group.add(leg); legs.push(leg);
@@ -684,7 +684,7 @@ class FPSGame {
     if (this.player.isAlive) this._updateMovement(dt);
     this._updateBots(dt);
 
-    const offsetTarget = (this.isSliding && this.player.onGround) ? -0.9 : 0;
+    const offsetTarget = this.isSliding ? -0.9 : 0;
     this.camHeightOffset += (offsetTarget - this.camHeightOffset) * Math.min(1, dt * 14);
 
     this.camera.position.copy(this.player.pos);
@@ -721,44 +721,53 @@ class FPSGame {
     if (this.keys['KeyS']) dir.z += 1;
     if (this.keys['KeyA']) dir.x -= 1;
     if (this.keys['KeyD']) dir.x += 1;
-
-    const wasMoving = this.player.isMoving;
     this.player.isMoving = dir.lengthSq() > 0;
 
-    if (this.keys['ControlLeft'] && wasMoving && !this.isSliding && this.slideCooldown <= 0 && this.player.onGround) {
+    // ── JUMP (checked first — always responds to Space) ──
+    if (this.keys['Space'] && this.player.onGround) {
+      if (this.isSliding) {
+        // Slide-jump: cancel slide immediately, no cooldown, slight boost
+        this.isSliding     = false;
+        this.slideCooldown = 0;
+        this.player.vel.y  = 6.2;
+      } else {
+        this.player.vel.y  = 5.8;
+      }
+      this.player.onGround = false;
+    }
+
+    // ── START SLIDE (Ctrl or CapsLock on ground while moving) ──
+    const wantSlide = this.keys['ControlLeft'] || this.keys['ControlRight'];
+    if (wantSlide && this.player.isMoving && !this.isSliding && this.slideCooldown <= 0 && this.player.onGround) {
       this.isSliding  = true;
       this.slideTimer = 0.85;
       this.slideSpeed = 9.5;
       this.slideDir.copy(dir.clone().normalize().applyAxisAngle(new THREE.Vector3(0, 1, 0), this.player.yaw));
     }
 
+    // ── HORIZONTAL MOVEMENT ──
     if (this.isSliding) {
       this.slideTimer -= dt;
-      this.slideSpeed  = Math.max(0, this.slideSpeed - (this.player.onGround ? 11 : 3) * dt);
-      this.player.pos.x = Math.max(-38, Math.min(38, this.player.pos.x + this.slideDir.x * this.slideSpeed * dt));
-      this.player.pos.z = Math.max(-36, Math.min(36, this.player.pos.z + this.slideDir.z * this.slideSpeed * dt));
-      if (this.slideTimer <= 0 || this.slideSpeed <= 0.2) {
+      this.slideSpeed  = Math.max(0, this.slideSpeed - (this.player.onGround ? 10 : 3) * dt);
+      this.player.pos.x += this.slideDir.x * this.slideSpeed * dt;
+      this.player.pos.z += this.slideDir.z * this.slideSpeed * dt;
+      // Only end slide (with cooldown) when back on ground
+      if (this.player.onGround && (this.slideTimer <= 0 || this.slideSpeed <= 0.2)) {
         this.isSliding     = false;
-        this.slideCooldown = 0.7;
+        this.slideCooldown = 0.6;
       }
-    } else {
+    } else if (this.player.isMoving) {
       const speed = 5.2 * (isWalking ? 0.55 : 1.0) * (this.weaponAnim.adsT > 0.1 ? 0.85 : 1.0);
-      if (this.player.isMoving) {
-        dir.normalize().applyAxisAngle(new THREE.Vector3(0, 1, 0), this.player.yaw);
-        this.player.pos.x = Math.max(-38, Math.min(38, this.player.pos.x + dir.x * speed * dt));
-        this.player.pos.z = Math.max(-36, Math.min(36, this.player.pos.z + dir.z * speed * dt));
-      }
+      const moveDir = dir.clone().normalize().applyAxisAngle(new THREE.Vector3(0, 1, 0), this.player.yaw);
+      this.player.pos.x += moveDir.x * speed * dt;
+      this.player.pos.z += moveDir.z * speed * dt;
     }
 
-    // pos.y = pure physics (never modified by slide)
-    if (this.player.onGround) this.player.pos.y = 1.65;
-
-    if (this.keys['Space'] && this.player.onGround) {
-      this.player.vel.y    = 5.5;
-      this.player.onGround = false;
-    }
-
-    if (!this.player.onGround) {
+    // ── VERTICAL PHYSICS ──
+    if (this.player.onGround) {
+      this.player.pos.y = 1.65;
+      this.player.vel.y = 0;
+    } else {
       this.player.vel.y -= 16 * dt;
       this.player.pos.y += this.player.vel.y * dt;
       if (this.player.pos.y <= 1.65) {
@@ -767,6 +776,10 @@ class FPSGame {
         this.player.onGround = true;
       }
     }
+
+    // ── BOUNDS ──
+    this.player.pos.x = Math.max(-38, Math.min(38, this.player.pos.x));
+    this.player.pos.z = Math.max(-36, Math.min(36, this.player.pos.z));
   }
 
   _updateWeaponAnim(dt) {
